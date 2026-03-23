@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ATLAS Website
 
-## Getting Started
+Landing page for atlasapp.io — built with Next.js 14, TypeScript, Tailwind CSS.
 
-First, run the development server:
+## Setup
 
 ```bash
+# Install dependencies
+npm install
+
+# Run locally
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  layout.tsx      ← Root layout + SEO metadata
+  page.tsx        ← Main page (assembles all sections)
+  globals.css     ← Base styles + CSS variables (light/dark mode)
 
-## Learn More
+components/
+  Nav.tsx         ← Top navigation bar
+  Hero.tsx        ← Hero section + waitlist email form
+  Features.tsx    ← 6-feature grid
+  Pricing.tsx     ← Free / Pro / Institutional tiers
+  Footer.tsx      ← Footer with legal disclaimer
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Push this repo to GitHub
+2. Go to vercel.com → New Project → Import your repo
+3. Vercel auto-detects Next.js — click Deploy
+4. Add your custom domain `atlasapp.io` in Project Settings → Domains
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Connect a real email list (Waitlist)
 
-## Deploy on Vercel
+The form in `Hero.tsx` currently increments a local counter.
+To capture real emails, add [Resend](https://resend.com):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. `npm install resend`
+2. Create `app/api/waitlist/route.ts` with a POST handler
+3. Call the API route from `Hero.tsx` on form submit
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Environment Variables
+
+Create `.env.local` for any API keys:
+
+```
+RESEND_API_KEY=re_...
+```
+
+Never commit `.env.local` to git.
