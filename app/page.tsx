@@ -1,4 +1,3 @@
-cat > /Users/sevenswords/projects/atlas-website/app/page.tsx << 'EOF'
 import Nav from '@/components/Nav'
 import Ticker from '@/components/Ticker'
 import Hero from '@/components/Hero'
@@ -18,4 +17,3 @@ export default function Home() {
     </main>
   )
 }
-EOF
