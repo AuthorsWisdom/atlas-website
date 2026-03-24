@@ -28,11 +28,11 @@ export default function Footer() {
           color: 'var(--text-3)',
           textAlign: 'center',
         }}>
-          © 2026 ATLAS · atlasapp.io · Not financial advice. For informational purposes only.
+          © 2026 XATLAS · xatlas.io · Not financial advice. For informational purposes only.
         </p>
         <div style={{ display: 'flex', gap: '1.5rem' }}>
-          <a href="#" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-3)' }}>Privacy</a>
-          <a href="#" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-3)' }}>Terms</a>
+          <a href="/privacy" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-3)', textDecoration: 'none' }}>Privacy</a>
+          <a href="/terms" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-3)', textDecoration: 'none' }}>Terms</a>
         </div>
       </div>
     </footer>
