@@ -1,11 +1,18 @@
 'use client'
+
 const PLANS = [
   {
     name: 'Free',
     price: '$0',
     period: '/mo',
     desc: 'Get started. See what institutional intelligence feels like.',
-    features: ['15-min delayed quotes', 'Macro regime view', '5 watchlist tickers', 'Community access'],
+    features: [
+      '15-min delayed quotes',
+      'Macro regime view',
+      '5 watchlist tickers',
+      'Squeeze + macro scoring',
+      'Community access',
+    ],
     featured: false,
   },
   {
@@ -13,16 +20,16 @@ const PLANS = [
     price: '$29',
     period: '/mo',
     desc: 'Real-time data and full conviction scoring for active traders.',
-    features: ['Real-time quotes via Polygon', 'Full conviction scorer', 'Options flow + GEX', 'Unlimited watchlist', 'Push alerts', 'BYOK AI integration'],
+    features: [
+      'Real-time quotes via Finnhub',
+      'Full 4-component conviction scorer',
+      'Options flow + GEX analysis',
+      'Unlimited watchlist',
+      'Push alerts',
+      '15-min score refresh',
+      'Priority email support',
+    ],
     featured: true,
-  },
-  {
-    name: 'Institutional',
-    price: '$79',
-    period: '/mo',
-    desc: 'Everything in Pro, plus deeper data and priority support.',
-    features: ['All Pro features', 'Extended history', 'Portfolio-level analysis', 'Priority support', 'Early feature access'],
-    featured: false,
   },
 ]
 
@@ -54,22 +61,23 @@ export default function Pricing() {
           marginBottom: '1rem',
           lineHeight: 1.15,
         }}>
-          Start free.<br />Upgrade when we earn it.
+          Simple pricing.<br />No surprises.
         </h2>
         <p style={{ fontSize: '15px', color: 'var(--text-2)', maxWidth: '380px', lineHeight: 1.7 }}>
-          No lock-ins. Cancel any time. Every tier includes the iOS app.
+          Start free. Upgrade when XATLAS earns it. Cancel anytime.
         </p>
       </div>
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: '16px',
+        maxWidth: '700px',
       }}>
         {PLANS.map(plan => (
           <div key={plan.name} style={{
-            background: plan.featured ? 'var(--bg-2)' : 'var(--bg-1)',
-            border: plan.featured ? '1px solid rgba(74,222,128,0.3)' : '1px solid var(--border)',
+            background: 'var(--bg-1)',
+            border: plan.featured ? '2px solid rgba(74,222,128,0.4)' : '1px solid var(--border)',
             borderRadius: '16px',
             padding: '2rem',
             position: 'relative',
@@ -102,7 +110,7 @@ export default function Pricing() {
               {plan.name}
             </p>
 
-            <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            <div style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
               <span style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: '2.5rem',
