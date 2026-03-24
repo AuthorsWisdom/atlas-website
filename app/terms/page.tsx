@@ -25,7 +25,7 @@ export default function TermsOfService() {
           </Section>
 
           <Section title="3. Account Registration and Security">
-            To access certain features, you must create an account. You agree to: provide accurate, current, and complete information; maintain and promptly update your account information; maintain the security and confidentiality of your login credentials; notify us immediately at legal.xatlas.io of any unauthorized access or security breach; and accept full responsibility for all activities that occur under your account. We reserve the right to suspend or terminate accounts that violate these Terms, at our sole discretion, with or without notice.
+            To access certain features, you must create an account. You agree to: provide accurate, current, and complete information; maintain and promptly update your account information; maintain the security and confidentiality of your login credentials; notify us immediately at legal@xatlas.io of any unauthorized access or security breach; and accept full responsibility for all activities that occur under your account. We reserve the right to suspend or terminate accounts that violate these Terms, at our sole discretion, with or without notice.
           </Section>
 
           <Section title="4. Subscriptions and Billing">
@@ -79,7 +79,7 @@ export default function TermsOfService() {
           <Section title="12. Dispute Resolution and Binding Arbitration">
             PLEASE READ THIS SECTION CAREFULLY. IT AFFECTS YOUR LEGAL RIGHTS, INCLUDING YOUR RIGHT TO FILE A LAWSUIT IN COURT.
             <br /><br />
-            <strong style={{ color: 'var(--text)' }}>Informal Resolution:</strong> Before initiating arbitration, you agree to first contact us at legal.xatlas.io and attempt to resolve the dispute informally for at least 30 days.
+            <strong style={{ color: 'var(--text)' }}>Informal Resolution:</strong> Before initiating arbitration, you agree to first contact us at legal@xatlas.io and attempt to resolve the dispute informally for at least 30 days.
             <br /><br />
             <strong style={{ color: 'var(--text)' }}>Binding Arbitration:</strong> If informal resolution fails, any dispute, claim, or controversy arising out of or relating to these Terms or the Service shall be finally resolved by binding arbitration administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules. The arbitration shall be conducted in San Antonio, Texas, or via videoconference. The arbitrator's decision shall be final and binding and may be entered as a judgment in any court of competent jurisdiction.
             <br /><br />
@@ -87,7 +87,7 @@ export default function TermsOfService() {
             <br /><br />
             <strong style={{ color: 'var(--text)' }}>Exceptions:</strong> Either party may seek emergency injunctive relief in a court of competent jurisdiction to prevent irreparable harm pending arbitration. Claims of intellectual property infringement may be brought in court.
             <br /><br />
-            <strong style={{ color: 'var(--text)' }}>Opt-Out:</strong> You may opt out of binding arbitration within 30 days of first accepting these Terms by emailing legal.xatlas.io with the subject "Arbitration Opt-Out."
+            <strong style={{ color: 'var(--text)' }}>Opt-Out:</strong> You may opt out of binding arbitration within 30 days of first accepting these Terms by emailing legal@xatlas.io with the subject "Arbitration Opt-Out."
           </Section>
 
           <Section title="13. Force Majeure">
@@ -117,8 +117,8 @@ export default function TermsOfService() {
           <Section title="19. Contact Us">
             For questions about these Terms or the Service:
             <br /><br />
-            General: legal.xatlas.io<br />
-            Privacy: privacy.xatlas.io<br />
+            General: legal@xatlas.io<br />
+            Privacy: privacy@xatlas.io<br />
             Website: xatlas.io<br />
             Response time: within 30 business days
           </Section>
