@@ -7,11 +7,22 @@ export default function Hero() {
   const [submitted, setSubmitted] = useState(false)
   const [count, setCount] = useState(247)
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!email || !email.includes('@')) return
-    setSubmitted(true)
-    setCount(c => c + 1)
-    setEmail('')
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (res.ok) {
+        setSubmitted(true)
+        setCount(c => c + 1)
+        setEmail('')
+      }
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return (
@@ -84,13 +95,13 @@ export default function Hero() {
           marginBottom: '1.5rem',
           maxWidth: '760px',
         }}>
-          <div style={{ color: 'var(--text)', lineHeight: 1.3, paddingBottom: '0.3em' }}>
+          <div style={{ color: 'var(--text)', lineHeight: 1.3, paddingBottom: '0.1em' }}>
             Institutional
           </div>
-          <div style={{ color: 'var(--green)', lineHeight: 1.3, paddingBottom: '0.5em' }}>
+          <div style={{ color: 'var(--green)', lineHeight: 1.3, paddingBottom: '0.25em' }}>
             intelligence.
           </div>
-          <div style={{ color: 'var(--text)', lineHeight: 1.3, paddingBottom: '0.3em' }}>
+          <div style={{ color: 'var(--text)', lineHeight: 1.3, paddingBottom: '0.1em' }}>
             Your iPhone.
           </div>
         </div>
