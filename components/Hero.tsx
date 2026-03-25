@@ -1,28 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Hero() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [count, setCount] = useState<number | null>(null)
 
+  useEffect(() => {
+    fetch('/api/waitlist')
+      .then(r => r.json())
+      .then(d => { if (d.count > 0) setCount(d.count) })
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit() {
     if (!email || !email.includes('@')) return
+    setLoading(true)
+    setError('')
     try {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       })
+      const data = await res.json()
       if (res.ok) {
         setSubmitted(true)
-
         setEmail('')
+        if (data.count > 0) setCount(data.count)
+      } else {
+        setError(data.error || 'Something went wrong — try again')
       }
-    } catch (err) {
-      console.error(err)
+    } catch {
+      setError('Something went wrong — try again')
     }
+    setLoading(false)
   }
 
   return (
@@ -121,56 +136,101 @@ export default function Hero() {
 
         {/* Waitlist form */}
         <div id="waitlist" className="animate-fade-up delay-4" style={{ marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', gap: '8px', maxWidth: '440px' }}>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              placeholder={submitted ? "You're on the list!" : "your@email.com"}
-              disabled={submitted}
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                border: '1px solid var(--border-2)',
-                borderRadius: '8px',
-                background: 'var(--bg-1)',
-                color: 'var(--text)',
+          {submitted ? (
+            <div style={{
+              maxWidth: '440px',
+              padding: '16px 20px',
+              borderRadius: '8px',
+              background: 'rgba(74,222,128,0.08)',
+              border: '1px solid rgba(74,222,128,0.2)',
+            }}>
+              <p style={{
+                fontFamily: 'var(--font-mono)',
                 fontSize: '14px',
-                fontFamily: 'var(--font-display)',
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-2)')}
-            />
-            <button
-              onClick={handleSubmit}
-              disabled={submitted}
-              style={{
-                padding: '12px 22px',
-                background: submitted ? 'var(--bg-2)' : 'var(--green)',
-                color: submitted ? 'var(--text-2)' : '#052e16',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: 700,
-                cursor: submitted ? 'default' : 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {submitted ? 'Joined ✓' : 'Get early access'}
-            </button>
-          </div>
+                color: 'var(--green)',
+                fontWeight: 600,
+                marginBottom: '4px',
+              }}>
+                You&apos;re on the list.
+              </p>
+              <p style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '12px',
+                color: 'var(--text-2)',
+              }}>
+                We&apos;ll notify you at launch.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: '8px', maxWidth: '440px' }}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                  placeholder="your@email.com"
+                  disabled={loading}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    border: '1px solid var(--border-2)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-1)',
+                    color: 'var(--text)',
+                    fontSize: '14px',
+                    fontFamily: 'var(--font-display)',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    opacity: loading ? 0.6 : 1,
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-2)')}
+                />
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  style={{
+                    padding: '12px 22px',
+                    background: 'var(--green)',
+                    color: '#052e16',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: loading ? 'wait' : 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s',
+                    fontFamily: 'var(--font-display)',
+                    opacity: loading ? 0.7 : 1,
+                  }}
+                >
+                  {loading ? 'Joining...' : 'Get early access'}
+                </button>
+              </div>
+              {error && (
+                <p style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '12px',
+                  color: '#ef4444',
+                  marginTop: '8px',
+                }}>
+                  {error}
+                </p>
+              )}
+            </>
+          )}
           <p style={{
             fontFamily: 'var(--font-mono)',
             fontSize: '12px',
             color: 'var(--text-3)',
             marginTop: '10px',
           }}>
-            Be first to know when we launch · No spam · App Store launch notification only
+            {count && count > 0
+              ? `Join ${count} trader${count === 1 ? '' : 's'} already waiting`
+              : 'Be first to know when we launch'
+            }
+            {' · No spam · App Store launch notification only'}
           </p>
         </div>
 
