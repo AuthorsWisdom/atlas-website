@@ -5,7 +5,7 @@ import { useState } from 'react'
 export default function Hero() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const [count, setCount] = useState(247)
+
 
   async function handleSubmit() {
     if (!email || !email.includes('@')) return
@@ -17,7 +17,7 @@ export default function Hero() {
       })
       if (res.ok) {
         setSubmitted(true)
-        setCount(c => c + 1)
+
         setEmail('')
       }
     } catch (err) {
@@ -170,7 +170,7 @@ export default function Hero() {
             color: 'var(--text-3)',
             marginTop: '10px',
           }}>
-            {count} traders already on the waitlist · No spam · App Store launch notification only
+            Be first to know when we launch · No spam · App Store launch notification only
           </p>
         </div>
 
