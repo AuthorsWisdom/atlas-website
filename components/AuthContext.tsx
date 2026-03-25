@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import { supabase } from '@/lib/supabase-browser'
+import { getSupabase } from '@/lib/supabase-browser'
 
 interface Profile {
   id: string
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' })
         fetchProfile(session.user.id, session.user.email || '')
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = getSupabase().auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' })
         fetchProfile(session.user.id, session.user.email || '')
@@ -75,17 +75,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile])
 
   const signIn = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await getSupabase().auth.signInWithPassword({ email, password })
     return error ? error.message : null
   }
 
   const signUp = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await getSupabase().auth.signUp({ email, password })
     return error ? error.message : null
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await getSupabase().auth.signOut()
     setUser(null)
     setProfile(null)
   }
