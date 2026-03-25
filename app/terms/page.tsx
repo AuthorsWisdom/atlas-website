@@ -34,7 +34,7 @@ export default function TermsOfService() {
           </Section>
 
           <Section title="4. Subscriptions and Billing">
-            <strong style={{ color: 'var(--text)' }}>Subscription Tiers:</strong> XAtlas offers Free ($0/month), Pro Monthly ($29.99/month with 7-day free trial), Pro Annual ($199.99/year with 7-day free trial), and Pro Lifetime ($299.99 one-time payment) plans with features as described on our website.
+            <strong style={{ color: 'var(--text)' }}>Subscription Tiers:</strong> XAtlas offers Free ($0/month), Pro Monthly ($29.99/month with 7-day free trial), Pro Annual ($199.99/year with 7-day free trial), and Founding Member Lifetime ($499.99 one-time payment, available until June 23, 2026) plans with features as described on our website.
             <br /><br />
             <strong style={{ color: 'var(--text)' }}>Billing:</strong> All subscriptions are billed through Apple&apos;s in-app purchase system. By subscribing, you authorize Apple to charge your Apple ID account on a recurring basis. Payment is charged upon confirmation of purchase.
             <br /><br />
@@ -44,7 +44,7 @@ export default function TermsOfService() {
             <br /><br />
             <strong style={{ color: 'var(--text)' }}>Refunds:</strong> All purchases are final and non-refundable except where required by applicable law or Apple&apos;s refund policies. To request a refund, contact Apple directly at reportaproblem.apple.com.
             <br /><br />
-            <strong style={{ color: 'var(--text)' }}>Free Trial:</strong> Pro Monthly and Pro Annual plans include a 7-day free trial. The trial will automatically convert to a paid subscription at the end of the trial period unless cancelled at least 24 hours before the trial ends. Pro Lifetime does not include a free trial.
+            <strong style={{ color: 'var(--text)' }}>Free Trial:</strong> Pro Monthly and Pro Annual plans include a 7-day free trial. The trial will automatically convert to a paid subscription at the end of the trial period unless cancelled at least 24 hours before the trial ends. The Founding Member Lifetime plan does not include a free trial and is available for a limited time only (until June 23, 2026).
             <br /><br />
             <strong style={{ color: 'var(--text)' }}>Price Changes:</strong> We reserve the right to change subscription prices. We will provide at least 30 days&apos; notice of any price changes via email or in-app notification. If you do not cancel before the price change takes effect, your continued use constitutes acceptance of the new price.
           </Section>

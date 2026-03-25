@@ -55,18 +55,19 @@ const PLANS = [
     cta: 'Start free trial',
   },
   {
-    name: 'Pro Lifetime',
-    price: '$299.99',
+    name: 'Founding Member',
+    price: '$499.99',
     period: ' once',
-    desc: 'One-time payment. Pro access forever.',
+    desc: 'One-time payment. Pro access forever. Founding members only.',
     features: [
       'Everything in Pro Monthly',
       'No recurring charges — ever',
+      'Founding member status',
     ],
     limits: [],
-    badge: null,
+    badge: 'founding',
     featured: false,
-    cta: 'Buy lifetime access',
+    cta: 'Claim founding member access',
   },
 ]
 
@@ -159,6 +160,24 @@ export default function Pricing() {
               </div>
             )}
 
+            {plan.badge === 'founding' && (
+              <div style={{
+                display: 'inline-block',
+                background: 'rgba(251,191,36,0.1)',
+                color: '#fbbf24',
+                fontSize: '11px',
+                padding: '4px 12px',
+                borderRadius: '99px',
+                marginBottom: '1.25rem',
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.06em',
+                border: '1px solid rgba(251,191,36,0.2)',
+                width: 'fit-content',
+              }}>
+                Limited time — founding members only
+              </div>
+            )}
+
             <p style={{
               fontFamily: 'var(--font-mono)',
               fontSize: '11px',
@@ -199,6 +218,18 @@ export default function Pricing() {
                 marginBottom: '0',
               }}>
                 {plan.trial}
+              </p>
+            )}
+
+            {plan.badge === 'founding' && (
+              <p style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '11px',
+                color: '#fbbf24',
+                marginTop: '4px',
+                marginBottom: '0',
+              }}>
+                Available until June 23, 2026
               </p>
             )}
 
