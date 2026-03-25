@@ -364,12 +364,13 @@ function SettingsTab() {
   )
 }
 
-// ─── Main AppDemo Component ──────────────────────────────────────
+// ─── Shared App Content (used by both marketing demo and PWA /app) ──
 
-export default function AppDemo() {
+export function AppContent({ fullscreen = false }: { fullscreen?: boolean }) {
   const [tab, setTab] = useState<Tab>('scanner')
   const [quotes, setQuotes] = useState<Record<string, QuoteData>>({})
   const [macro, setMacro] = useState<MacroData | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const allSymbols = [...new Set([...SCANNER_TICKERS, ...WATCHLIST_TICKERS])]
 
@@ -384,6 +385,7 @@ export default function AppDemo() {
       if (r.status === 'fulfilled' && r.value) map[allSymbols[i]] = r.value
     })
     setQuotes(map)
+    setLastUpdated(new Date())
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -399,29 +401,44 @@ export default function AppDemo() {
     { id: 'settings', label: 'Settings' },
   ]
 
-  const phoneContent = (
+  return (
     <div style={{
       background: '#080808',
       width: '100%',
-      height: '100%',
+      height: fullscreen ? '100dvh' : '100%',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-      borderRadius: 'inherit',
+      borderRadius: fullscreen ? 0 : 'inherit',
     }}>
-      {/* Status bar */}
-      <div style={{
-        padding: '8px 20px 6px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        flexShrink: 0,
-      }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: '#888' }}>9:41</span>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <div style={{ width: 14, height: 10, border: '1px solid #555', borderRadius: 2, position: 'relative' }}>
-            <div style={{ position: 'absolute', inset: 1, background: '#4ade80', borderRadius: 1 }} />
+      {/* Status bar — only in phone frame mode */}
+      {!fullscreen && (
+        <div style={{
+          padding: '8px 20px 6px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: '#888' }}>9:41</span>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <div style={{ width: 14, height: 10, border: '1px solid #555', borderRadius: 2, position: 'relative' }}>
+              <div style={{ position: 'absolute', inset: 1, background: '#4ade80', borderRadius: 1 }} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Offline / last updated indicator */}
+      {fullscreen && lastUpdated && (
+        <div style={{
+          padding: '4px 16px', background: '#0a0a0a',
+          display: 'flex', justifyContent: 'center', flexShrink: 0,
+          paddingTop: 'env(safe-area-inset-top, 12px)',
+        }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#444' }}>
+            Last updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -435,6 +452,7 @@ export default function AppDemo() {
       <div style={{
         display: 'flex', justifyContent: 'space-around', alignItems: 'center',
         padding: '8px 0 12px',
+        paddingBottom: fullscreen ? 'max(12px, env(safe-area-inset-bottom))' : '12px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         background: '#0a0a0a',
         flexShrink: 0,
@@ -457,12 +475,19 @@ export default function AppDemo() {
         })}
       </div>
 
-      {/* Home indicator */}
-      <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 6, flexShrink: 0 }}>
-        <div style={{ width: 100, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
-      </div>
+      {/* Home indicator — only in phone frame mode */}
+      {!fullscreen && (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 6, flexShrink: 0 }}>
+          <div style={{ width: 100, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+        </div>
+      )}
     </div>
   )
+}
+
+// ─── Main AppDemo Component (marketing site with phone frame) ────
+
+export default function AppDemo() {
 
   return (
     <section style={{
@@ -517,7 +542,7 @@ export default function AppDemo() {
             overflow: 'hidden',
             height: '780px',
           }}>
-            {phoneContent}
+            <AppContent />
           </div>
         </div>
       </div>
