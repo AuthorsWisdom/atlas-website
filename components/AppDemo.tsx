@@ -312,7 +312,10 @@ function WatchlistTab({ data }: { data: Record<string, QuoteData> }) {
 
 // ─── Settings Tab ────────────────────────────────────────────────
 
-function SettingsTab() {
+function SettingsTab({ profile, onManage }: { profile?: { is_pro: boolean; subscription_source: string; stripe_customer_id: string | null } | null; onManage?: () => void }) {
+  const isPro = profile?.is_pro ?? false
+  const source = profile?.subscription_source ?? 'none'
+
   return (
     <div style={{ padding: '16px 14px' }}>
       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em', display: 'block', marginBottom: 16 }}>SETTINGS</span>
@@ -322,12 +325,34 @@ function SettingsTab() {
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SUBSCRIPTION</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#f0ede6' }}>Status</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, color: '#4ade80' }}>PRO</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, color: isPro ? '#4ade80' : '#888' }}>
+            {isPro ? 'PRO' : 'FREE'}
+          </span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#f0ede6' }}>Plan</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: '#888' }}>Monthly · $29.99</span>
-        </div>
+        {isPro && source === 'stripe' && onManage && (
+          <button onClick={onManage} style={{
+            width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)',
+            background: 'transparent', color: '#aaa', fontFamily: 'var(--font-mono)',
+            fontSize: '10px', cursor: 'pointer', marginTop: 4,
+          }}>
+            Manage subscription
+          </button>
+        )}
+        {isPro && source === 'apple' && (
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: '#666', marginTop: 4 }}>
+            Manage in iPhone Settings → Subscriptions
+          </p>
+        )}
+        {!isPro && (
+          <a href="/#pricing" style={{
+            display: 'block', textAlign: 'center', padding: 8, borderRadius: 6,
+            background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)',
+            fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 600,
+            textDecoration: 'none', marginTop: 4,
+          }}>
+            Upgrade to Pro
+          </a>
+        )}
       </div>
 
       {/* API Keys */}
@@ -352,14 +377,16 @@ function SettingsTab() {
         ))}
       </div>
 
-      <a href="#waitlist" style={{
-        display: 'block', textAlign: 'center', padding: '10px',
-        borderRadius: 8, background: 'var(--green)', color: '#052e16',
-        fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700,
-        textDecoration: 'none', letterSpacing: '0.04em',
-      }}>
-        Sign up to save your settings
-      </a>
+      {!profile && (
+        <a href="#waitlist" style={{
+          display: 'block', textAlign: 'center', padding: '10px',
+          borderRadius: 8, background: '#4ade80', color: '#052e16',
+          fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700,
+          textDecoration: 'none', letterSpacing: '0.04em',
+        }}>
+          Sign up to save your settings
+        </a>
+      )}
     </div>
   )
 }
@@ -445,7 +472,7 @@ export function AppContent({ fullscreen = false }: { fullscreen?: boolean }) {
         {tab === 'scanner' && <ScannerTab data={quotes} />}
         {tab === 'macro' && <MacroTab macro={macro} />}
         {tab === 'watchlist' && <WatchlistTab data={quotes} />}
-        {tab === 'settings' && <SettingsTab />}
+        {tab === 'settings' && <SettingsTab profile={null} />}
       </div>
 
       {/* Tab bar */}

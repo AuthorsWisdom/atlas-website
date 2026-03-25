@@ -6,18 +6,21 @@ import LiveDemo from '@/components/LiveDemo'
 import AppDemo from '@/components/AppDemo'
 import Pricing from '@/components/Pricing'
 import Footer from '@/components/Footer'
+import { AuthProvider } from '@/components/AuthContext'
 
 export default function Home() {
   return (
-    <main>
-      <Nav />
-      <Ticker />
-      <Hero />
-      <Features />
-      <LiveDemo />
-      <AppDemo />
-      <Pricing />
-      <Footer />
-    </main>
+    <AuthProvider>
+      <main>
+        <Nav />
+        <Ticker />
+        <Hero />
+        <Features />
+        <LiveDemo />
+        <AppDemo />
+        <Pricing />
+        <Footer />
+      </main>
+    </AuthProvider>
   )
 }

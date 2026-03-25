@@ -1,5 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { useAuth } from './AuthContext'
+import AuthModal from './AuthModal'
+
 const PLANS = [
   {
     name: 'Free',
@@ -19,6 +23,7 @@ const PLANS = [
     badge: null,
     featured: false,
     cta: 'Download free',
+    stripePrice: null,
   },
   {
     name: 'Pro Monthly',
@@ -38,6 +43,7 @@ const PLANS = [
     badge: 'most-popular',
     featured: true,
     cta: 'Start free trial',
+    stripePrice: 'monthly',
   },
   {
     name: 'Pro Annual',
@@ -53,6 +59,7 @@ const PLANS = [
     badge: 'best-value',
     featured: false,
     cta: 'Start free trial',
+    stripePrice: 'annual',
   },
   {
     name: 'Founding Member',
@@ -68,11 +75,63 @@ const PLANS = [
     badge: 'founding',
     featured: false,
     cta: 'Claim founding member access',
+    stripePrice: 'lifetime',
   },
 ]
 
+const STRIPE_PRICES: Record<string, string> = {
+  monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY || '',
+  annual: process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL || '',
+  lifetime: process.env.NEXT_PUBLIC_STRIPE_PRICE_LIFETIME || '',
+}
+
 export default function Pricing() {
+  const { user } = useAuth()
+  const [showAuth, setShowAuth] = useState(false)
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+
+  async function handleCheckout(priceKey: string) {
+    const priceId = STRIPE_PRICES[priceKey]
+    if (!priceId) return
+
+    if (!user) {
+      setPendingPlan(priceKey)
+      setShowAuth(true)
+      return
+    }
+
+    setCheckoutLoading(priceKey)
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId,
+          email: user.email,
+          userId: user.id,
+          plan: priceKey,
+        }),
+      })
+      const { url } = await res.json()
+      if (url) window.location.href = url
+    } catch (err) {
+      console.error('Checkout error:', err)
+    }
+    setCheckoutLoading(null)
+  }
+
+  function handleAuthSuccess() {
+    setShowAuth(false)
+    if (pendingPlan) {
+      handleCheckout(pendingPlan)
+      setPendingPlan(null)
+    }
+  }
+
   return (
+    <>
+    {showAuth && <AuthModal onClose={() => { setShowAuth(false); setPendingPlan(null) }} onSuccess={handleAuthSuccess} />}
     <section id="pricing" style={{
       maxWidth: '1100px',
       margin: '0 auto',
@@ -306,24 +365,44 @@ export default function Pricing() {
                 </ul>
               )}
 
-              <a href="#waitlist" style={{
-                display: 'block',
-                textAlign: 'center',
-                padding: '10px 0',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                fontFamily: 'var(--font-mono)',
-                textDecoration: 'none',
-                background: plan.featured
-                  ? 'var(--green)'
-                  : 'var(--bg-2)',
-                color: plan.featured
-                  ? '#052e16'
-                  : 'var(--text-2)',
-              }}>
-                {plan.cta}
-              </a>
+              {plan.stripePrice ? (
+                <button
+                  onClick={() => handleCheckout(plan.stripePrice!)}
+                  disabled={checkoutLoading === plan.stripePrice}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'center',
+                    padding: '10px 0',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-mono)',
+                    border: 'none',
+                    cursor: checkoutLoading === plan.stripePrice ? 'wait' : 'pointer',
+                    background: plan.featured ? 'var(--green)' : 'var(--bg-2)',
+                    color: plan.featured ? '#052e16' : 'var(--text-2)',
+                    opacity: checkoutLoading === plan.stripePrice ? 0.6 : 1,
+                    transition: 'opacity 0.2s',
+                  }}>
+                  {checkoutLoading === plan.stripePrice ? 'Loading...' : plan.cta}
+                </button>
+              ) : (
+                <a href="#waitlist" style={{
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-mono)',
+                  textDecoration: 'none',
+                  background: 'var(--bg-2)',
+                  color: 'var(--text-2)',
+                }}>
+                  {plan.cta}
+                </a>
+              )}
             </div>
           </div>
         ))}
@@ -336,8 +415,9 @@ export default function Pricing() {
         fontFamily: 'var(--font-mono)',
         textAlign: 'center',
       }}>
-        Subscriptions managed through Apple. Cancel anytime. All Pro plans include the same features.
+        Subscribe on web or in-app. Cancel anytime. All Pro plans include the same features.
       </p>
     </section>
+    </>
   )
 }

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
-import { AppContent } from '@/components/AppDemo'
+import { AuthProvider } from '@/components/AuthContext'
+import PWAApp from './PWAApp'
 
 export const metadata: Metadata = {
   title: 'XAtlas',
@@ -12,5 +13,9 @@ export const viewport: Viewport = {
 }
 
 export default function AppPage() {
-  return <AppContent fullscreen />
+  return (
+    <AuthProvider>
+      <PWAApp />
+    </AuthProvider>
+  )
 }
