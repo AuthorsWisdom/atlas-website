@@ -122,24 +122,29 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
 }
 
 function Skeleton() {
+  const size = 160, stroke = 8, radius = (size - stroke) / 2
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      gap: '24px', padding: '2rem', minHeight: '320px', justifyContent: 'center',
-    }}>
-      <div style={{
-        width: 160, height: 160, borderRadius: '50%',
-        background: 'rgba(255,255,255,0.04)',
-        animation: 'pulse-dot 1.5s ease-in-out infinite',
-      }} />
-      <div style={{ width: '100%', maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} style={{
-            height: '24px', borderRadius: '4px',
-            background: 'rgba(255,255,255,0.04)',
-            animation: 'pulse-dot 1.5s ease-in-out infinite',
-            animationDelay: `${i * 0.1}s`,
-          }} />
+    <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center', flexWrap: 'wrap', padding: '0' }}>
+      {/* Ring outline skeleton */}
+      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 48, height: 32, borderRadius: 4, background: 'rgba(255,255,255,0.04)', animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
+          <div style={{ width: 24, height: 10, borderRadius: 3, background: 'rgba(255,255,255,0.03)', marginTop: 6 }} />
+        </div>
+      </div>
+      {/* Bar skeletons */}
+      <div style={{ flex: 1, minWidth: '200px' }}>
+        {['SQUEEZE', 'OPTIONS FLOW', 'GEX', 'MACRO'].map((label, i) => (
+          <div key={label} style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-3)', letterSpacing: '0.06em' }}>{label}</span>
+              <div style={{ width: 28, height: 12, borderRadius: 3, background: 'rgba(255,255,255,0.04)', animation: 'pulse-dot 1.5s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
+            </div>
+            <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)' }} />
+          </div>
         ))}
       </div>
     </div>
@@ -150,39 +155,62 @@ export default function LiveDemo() {
   const [ticker, setTicker] = useState('SPY')
   const [input, setInput] = useState('SPY')
   const [data, setData] = useState<DemoData | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [animated, setAnimated] = useState(false)
+  const cacheRef = useState(() => new Map<string, DemoData>())[0]
 
   const fetchDemo = useCallback(async (sym: string) => {
     const s = sym.toUpperCase().trim()
     if (!s) return
-    setLoading(true)
-    setError('')
-    setAnimated(false)
     setTicker(s)
     setInput(s)
+    setError('')
+
+    // Show cached data instantly if available
+    const cached = cacheRef.get(s)
+    if (cached) {
+      setData(cached)
+      setAnimated(false)
+      requestAnimationFrame(() => setTimeout(() => setAnimated(true), 50))
+    }
+
+    setLoading(!cached)
+    setAnimated(false)
     try {
       const res = await fetch(`/api/demo/${s}`)
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError(body.error || 'Failed to fetch data')
-        setData(null)
+        if (!cached) {
+          const body = await res.json().catch(() => ({}))
+          setError(body.error || 'Failed to fetch data')
+          setData(null)
+        }
       } else {
         const d = await res.json()
+        cacheRef.set(s, d)
         setData(d)
-        requestAnimationFrame(() => {
-          setTimeout(() => setAnimated(true), 50)
-        })
+        requestAnimationFrame(() => setTimeout(() => setAnimated(true), 50))
       }
     } catch {
-      setError('Network error — try again')
-      setData(null)
+      if (!cached) {
+        setError('Network error — try again')
+        setData(null)
+      }
     }
     setLoading(false)
-  }, [])
+  }, [cacheRef])
 
-  useEffect(() => { fetchDemo('SPY') }, [fetchDemo])
+  // Prefetch all default tickers on mount, show SPY first
+  useEffect(() => {
+    fetchDemo('SPY')
+    // Prefetch others in background
+    QUICK_TICKERS.filter(t => t !== 'SPY').forEach(t => {
+      fetch(`/api/demo/${t}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) cacheRef.set(t, d) })
+        .catch(() => {})
+    })
+  }, [fetchDemo, cacheRef])
 
   return (
     <section id="demo" style={{
@@ -281,9 +309,9 @@ export default function LiveDemo() {
         padding: 'clamp(1.5rem, 3vw, 2.5rem)',
         maxWidth: '640px',
       }}>
-        {loading ? (
+        {loading && !data ? (
           <Skeleton />
-        ) : error ? (
+        ) : error && !data ? (
           <div style={{
             textAlign: 'center', padding: '3rem 1rem',
             color: 'var(--text-2)', fontFamily: 'var(--font-mono)',
