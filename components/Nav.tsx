@@ -21,7 +21,7 @@ export default function Nav() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img src="/logo.png" alt="XATLAS" style={{ width: '40px', height: '40px', borderRadius: '10px' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '16px', fontWeight: 700, letterSpacing: '0.2em', color: '#f0ede6', lineHeight: '1' }}>ATLAS</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '16px', fontWeight: 700, letterSpacing: '0.2em', color: '#f0ede6', lineHeight: '1' }}>XATLAS</span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#4ade80', letterSpacing: '0.3em', lineHeight: '1' }}>INTELLIGENCE</span>
           </div>
         </div>

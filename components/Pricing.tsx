@@ -5,65 +5,68 @@ const PLANS = [
     name: 'Free',
     price: '$0',
     period: '/mo',
-    desc: 'Get started with delayed market intelligence.',
+    desc: 'Get started with basic market intelligence.',
     features: [
-      '15-min delayed quotes',
-      'Macro regime view',
-      '5 watchlist tickers',
-      'Squeeze + macro scoring',
+      '3 watchlist symbols',
+      'Delayed conviction scores',
+      'Basic macro regime view',
     ],
-    ai: false,
+    limits: [
+      'No options flow or GEX data',
+      'No AI analysis',
+      'No push alerts',
+    ],
+    badge: null,
     featured: false,
     cta: 'Download free',
   },
   {
-    name: 'Free + AI',
-    price: '$10',
+    name: 'Pro Monthly',
+    price: '$29.99',
     period: '/mo',
-    desc: 'Add multi-AI analysis to your free plan.',
+    desc: 'Real-time data, full scoring, and AI analysis.',
+    trial: '7-day free trial',
     features: [
-      'Everything in Free',
-      'BYOK any AI provider',
-      'Claude, GPT-4o, Grok, Gemini',
-      'Add custom AI providers',
-      'Side-by-side AI comparison',
+      'Real-time conviction scores',
+      'Full options flow & GEX data',
+      'Macro regime classifier with 16 live FRED indicators',
+      'AI portfolio analysis across entire watchlist',
+      'Push alerts for high-conviction setups',
+      'Unlimited watchlist symbols',
     ],
-    ai: true,
-    featured: false,
-    cta: 'Get started',
-  },
-  {
-    name: 'Pro',
-    price: '$29',
-    period: '/mo',
-    desc: 'Real-time data and full conviction scoring.',
-    features: [
-      'Real-time quotes via Finnhub',
-      'Full 4-component conviction scorer',
-      'Options flow + GEX analysis',
-      'Unlimited watchlist',
-      'Push alerts',
-      'Priority email support',
-    ],
-    ai: false,
+    limits: [],
+    badge: 'most-popular',
     featured: true,
-    cta: 'Get Pro',
+    cta: 'Start free trial',
   },
   {
-    name: 'Pro + AI',
-    price: '$39',
-    period: '/mo',
-    desc: 'The full XATLAS experience.',
+    name: 'Pro Annual',
+    price: '$199.99',
+    period: '/yr',
+    desc: 'Everything in Pro at ~$16.67/mo. Save $159.89/year.',
+    trial: '7-day free trial',
     features: [
-      'Everything in Pro',
-      'BYOK any AI provider',
-      'Claude, GPT-4o, Grok, Gemini',
-      'Add custom AI providers',
-      'Side-by-side AI comparison',
+      'Everything in Pro Monthly',
+      'Save 44% vs monthly billing',
     ],
-    ai: true,
+    limits: [],
+    badge: 'best-value',
     featured: false,
-    cta: 'Get Pro + AI',
+    cta: 'Start free trial',
+  },
+  {
+    name: 'Pro Lifetime',
+    price: '$299.99',
+    period: ' once',
+    desc: 'One-time payment. Pro access forever.',
+    features: [
+      'Everything in Pro Monthly',
+      'No recurring charges — ever',
+    ],
+    limits: [],
+    badge: null,
+    featured: false,
+    cta: 'Buy lifetime access',
   },
 ]
 
@@ -98,7 +101,7 @@ export default function Pricing() {
           Simple pricing.<br />No surprises.
         </h2>
         <p style={{ fontSize: '15px', color: 'var(--text-2)', maxWidth: '400px', lineHeight: 1.7 }}>
-          Start free. Add AI for $10. Upgrade to Pro when you need real-time data. Cancel anytime.
+          Start free. Upgrade to Pro when you need real-time data and AI analysis. Cancel anytime.
         </p>
       </div>
 
@@ -120,7 +123,7 @@ export default function Pricing() {
             flexDirection: 'column',
           }}>
 
-            {plan.featured && (
+            {plan.badge === 'most-popular' && (
               <div style={{
                 display: 'inline-block',
                 background: 'rgba(74,222,128,0.12)',
@@ -138,21 +141,21 @@ export default function Pricing() {
               </div>
             )}
 
-            {plan.ai && (
+            {plan.badge === 'best-value' && (
               <div style={{
                 display: 'inline-block',
-                background: 'rgba(168,85,247,0.1)',
-                color: '#a855f7',
+                background: 'rgba(56,189,248,0.1)',
+                color: '#38bdf8',
                 fontSize: '11px',
                 padding: '4px 12px',
                 borderRadius: '99px',
                 marginBottom: '1.25rem',
                 fontFamily: 'var(--font-mono)',
                 letterSpacing: '0.06em',
-                border: '1px solid rgba(168,85,247,0.2)',
+                border: '1px solid rgba(56,189,248,0.2)',
                 width: 'fit-content',
               }}>
-                ✦ AI powered
+                Best value
               </div>
             )}
 
@@ -187,10 +190,23 @@ export default function Pricing() {
               </span>
             </div>
 
+            {'trial' in plan && plan.trial && (
+              <p style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '11px',
+                color: 'var(--green)',
+                marginTop: '4px',
+                marginBottom: '0',
+              }}>
+                {plan.trial}
+              </p>
+            )}
+
             <p style={{
               fontSize: '13px',
               color: 'var(--text-2)',
               marginBottom: '1.5rem',
+              marginTop: '0.75rem',
               lineHeight: 1.5,
             }}>
               {plan.desc}
@@ -206,7 +222,7 @@ export default function Pricing() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
-                marginBottom: '1.5rem',
+                marginBottom: plan.limits && plan.limits.length > 0 ? '12px' : '1.5rem',
               }}>
                 {plan.features.map(f => (
                   <li key={f} style={{
@@ -217,7 +233,7 @@ export default function Pricing() {
                     gap: '10px',
                   }}>
                     <span style={{
-                      color: plan.ai ? '#a855f7' : 'var(--green)',
+                      color: 'var(--green)',
                       fontFamily: 'var(--font-mono)',
                       flexShrink: 0,
                       marginTop: '1px',
@@ -228,6 +244,36 @@ export default function Pricing() {
                   </li>
                 ))}
               </ul>
+
+              {plan.limits && plan.limits.length > 0 && (
+                <ul style={{
+                  listStyle: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  marginBottom: '1.5rem',
+                }}>
+                  {plan.limits.map(l => (
+                    <li key={l} style={{
+                      fontSize: '13px',
+                      color: 'var(--text-3)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                    }}>
+                      <span style={{
+                        color: 'var(--text-3)',
+                        fontFamily: 'var(--font-mono)',
+                        flexShrink: 0,
+                        marginTop: '1px',
+                      }}>
+                        ✗
+                      </span>
+                      {l}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <a href="#waitlist" style={{
                 display: 'block',
@@ -240,17 +286,10 @@ export default function Pricing() {
                 textDecoration: 'none',
                 background: plan.featured
                   ? 'var(--green)'
-                  : plan.ai
-                  ? 'rgba(168,85,247,0.12)'
                   : 'var(--bg-2)',
                 color: plan.featured
                   ? '#052e16'
-                  : plan.ai
-                  ? '#a855f7'
                   : 'var(--text-2)',
-                border: plan.ai && !plan.featured
-                  ? '1px solid rgba(168,85,247,0.3)'
-                  : 'none',
               }}>
                 {plan.cta}
               </a>
@@ -266,7 +305,7 @@ export default function Pricing() {
         fontFamily: 'var(--font-mono)',
         textAlign: 'center',
       }}>
-        Subscriptions managed through Apple. Cancel anytime. AI features require BYOK API keys.
+        Subscriptions managed through Apple. Cancel anytime. All Pro plans include the same features.
       </p>
     </section>
   )

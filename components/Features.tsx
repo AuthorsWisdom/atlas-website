@@ -25,7 +25,7 @@ const STEPS = [
   {
     number: '03',
     title: 'Macro engine sets the stage',
-    desc: 'Our FRED-powered macro classifier reads 15 economic indicators to determine the current regime — risk-on, risk-off, or cautious — giving every signal its proper context.',
+    desc: 'Our FRED-powered macro classifier reads 16 economic indicators to determine the current regime — risk-on, risk-off, or cautious — giving every signal its proper context.',
     icon: '◎',
   },
   {
@@ -60,7 +60,7 @@ export default function Features() {
             One platform.<br />Every edge.
           </h2>
           <p style={{ fontSize: '15px', color: 'var(--text-2)', maxWidth: '440px', lineHeight: 1.7 }}>
-            Stop juggling five apps. ATLAS synthesizes the signals that matter into a single, actionable view.
+            Stop juggling five apps. XAtlas synthesizes the signals that matter into a single, actionable view.
           </p>
         </div>
 
