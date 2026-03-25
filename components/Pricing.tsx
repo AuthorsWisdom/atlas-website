@@ -79,46 +79,43 @@ const PLANS = [
   },
 ]
 
-const STRIPE_PRICES: Record<string, string> = {
-  monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY || '',
-  annual: process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL || '',
-  lifetime: process.env.NEXT_PUBLIC_STRIPE_PRICE_LIFETIME || '',
-}
-
 export default function Pricing() {
   const { user } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
   const [pendingPlan, setPendingPlan] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
-  async function handleCheckout(priceKey: string) {
-    const priceId = STRIPE_PRICES[priceKey]
-    if (!priceId) return
-
+  async function handleCheckout(plan: string) {
     if (!user) {
-      setPendingPlan(priceKey)
+      setPendingPlan(plan)
       setShowAuth(true)
       return
     }
 
-    setCheckoutLoading(priceKey)
+    setCheckoutLoading(plan)
+    setCheckoutError(null)
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          priceId,
+          plan,
           email: user.email,
           userId: user.id,
-          plan: priceKey,
         }),
       })
-      const { url } = await res.json()
-      if (url) window.location.href = url
-    } catch (err) {
-      console.error('Checkout error:', err)
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        setCheckoutError(data.error || 'Something went wrong — try again')
+        setCheckoutLoading(null)
+      }
+    } catch {
+      setCheckoutError('Something went wrong — try again')
+      setCheckoutLoading(null)
     }
-    setCheckoutLoading(null)
   }
 
   function handleAuthSuccess() {
@@ -415,6 +412,9 @@ export default function Pricing() {
         fontFamily: 'var(--font-mono)',
         textAlign: 'center',
       }}>
+        {checkoutError && (
+          <span style={{ color: '#f87171', display: 'block', marginBottom: '8px' }}>{checkoutError}</span>
+        )}
         Subscribe on web or in-app. Cancel anytime. All Pro plans include the same features.
       </p>
     </section>
