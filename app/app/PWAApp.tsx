@@ -26,6 +26,12 @@ interface MacroData {
   dxy: number; unemployment: number; risk_on_score: number; regime: string; credit_spread: number
 }
 interface SearchResult { symbol: string; name: string; type: string }
+interface PortfolioData {
+  top_pick: { symbol: string; conviction: number; reasoning: string } | null
+  high_conviction: string[]; moderate_conviction: string[]; low_conviction: string[]
+  risk_factors: string[]; regime_alignment: string; regime: string
+  scores: Record<string, number>; total_symbols: number
+}
 type Tab = 'scanner' | 'macro' | 'watchlist' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -45,6 +51,8 @@ const MACRO_INFO: Record<string, { title: string; desc: string; getStatus: (v: n
 }
 
 const mono = "'JetBrains Mono', monospace"
+const GREEN = '#1D9E75'
+const RED = '#E24B4A'
 
 function useIsDesktop() {
   const [d, setD] = useState(false)
@@ -76,6 +84,8 @@ export default function PWAApp() {
   const [expandedAI, setExpandedAI] = useState<string | null>(null)
   const [aiData, setAIData] = useState<Record<string, { loading: boolean; text: string; factors: string[] }>>({})
   const [detailTicker, setDetailTicker] = useState<string | null>(null)
+  const [portfolioAnalysis, setPortfolioAnalysis] = useState<{ loading: boolean; data: PortfolioData | null }>({ loading: false, data: null })
+  const [showPortfolio, setShowPortfolio] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
@@ -87,7 +97,7 @@ export default function PWAApp() {
     if (!symbols.length) return
     const results = await Promise.allSettled(
       symbols.map(s => {
-        const url = CRYPTO_SYMBOLS.has(s) ? `${BACKEND}/crypto/quote/${s}` : `/api/demo/${s}`
+        const url = CRYPTO_SYMBOLS.has(s) ? `/api/crypto/${s}` : `/api/demo/${s}`
         return fetch(url).then(r => r.ok ? r.json() : null)
       })
     )
@@ -166,7 +176,7 @@ export default function PWAApp() {
     if (!isPro && watchlist.length >= FREE_WATCHLIST_LIMIT) { setSearchError(`Free plan limited to ${FREE_WATCHLIST_LIMIT} symbols`); return }
     setSearchLoading(true)
     try {
-      const quoteUrl = CRYPTO_SYMBOLS.has(s) ? `${BACKEND}/crypto/quote/${s}` : `${BACKEND}/quote/${s}`
+      const quoteUrl = CRYPTO_SYMBOLS.has(s) ? `/api/crypto/${s}` : `${BACKEND}/quote/${s}`
       const res = await fetch(quoteUrl)
       const data = await res.json()
       if (!res.ok || data.price == null) { setSearchError('Ticker not found'); setSearchLoading(false); return }
@@ -708,6 +718,90 @@ export default function PWAApp() {
             <a href="/#pricing" style={{ display: 'block', textAlign: 'center', padding: 10, borderRadius: 8, marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)', color: '#4ade80', fontFamily: mono, fontSize: 10, fontWeight: 600, textDecoration: 'none' }}>
               Upgrade to Pro for unlimited watchlist
             </a>
+          )}
+
+          {/* AI Portfolio Analysis */}
+          {watchlist.length >= 2 && (
+            <div style={{ marginTop: 16 }}>
+              {isPro ? (
+                <>
+                  <button onClick={async () => {
+                    if (portfolioAnalysis.loading) return
+                    setShowPortfolio(true)
+                    setPortfolioAnalysis({ loading: true, data: null })
+                    try {
+                      const res = await fetch(`${BACKEND}/portfolio/analyze`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ symbols: watchlist, regime: macro?.regime ?? 'unknown' }),
+                      })
+                      const data = await res.json()
+                      setPortfolioAnalysis({ loading: false, data })
+                    } catch {
+                      setPortfolioAnalysis({ loading: false, data: null })
+                    }
+                  }} disabled={portfolioAnalysis.loading} style={{
+                    width: '100%', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: `${GREEN}1a`, fontFamily: mono, fontSize: 11, fontWeight: 600,
+                    color: GREEN, transition: 'opacity 0.15s',
+                    opacity: portfolioAnalysis.loading ? 0.6 : 1,
+                  }}>
+                    {portfolioAnalysis.loading ? 'Analyzing portfolio...' : 'AI Portfolio Analysis'}
+                  </button>
+
+                  {showPortfolio && portfolioAnalysis.data && (
+                    <div style={{ ...card, marginTop: 8 }}>
+                      <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>PORTFOLIO ANALYSIS</div>
+
+                      {portfolioAnalysis.data.top_pick && (
+                        <div style={{ marginBottom: 12, padding: '10px 12px', background: `${GREEN}0d`, borderRadius: 6, border: `1px solid ${GREEN}33` }}>
+                          <div style={{ fontFamily: mono, fontSize: 9, color: GREEN, marginBottom: 4 }}>TOP PICK</div>
+                          <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6' }}>
+                            {portfolioAnalysis.data.top_pick.symbol}
+                            <span style={{ fontSize: 11, color: GREEN, marginLeft: 8 }}>{portfolioAnalysis.data.top_pick.conviction}/100</span>
+                          </div>
+                          <div style={{ fontFamily: mono, fontSize: 10, color: '#888', marginTop: 4 }}>{portfolioAnalysis.data.top_pick.reasoning}</div>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>Regime alignment</span>
+                        <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 600, color:
+                          portfolioAnalysis.data.regime_alignment === 'aligned' ? GREEN :
+                          portfolioAnalysis.data.regime_alignment === 'misaligned' ? RED : '#fbbf24' }}>
+                          {portfolioAnalysis.data.regime_alignment.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {portfolioAnalysis.data.risk_factors.length > 0 && (
+                        <div>
+                          <div style={{ fontFamily: mono, fontSize: 9, color: '#555', marginBottom: 6 }}>RISK FACTORS</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {portfolioAnalysis.data.risk_factors.map((f, i) => (
+                              <span key={i} style={{ fontFamily: mono, fontSize: 9, padding: '3px 6px', borderRadius: 3, background: `${RED}12`, color: RED, border: `1px solid ${RED}22` }}>{f}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <button disabled style={{
+                    width: '100%', padding: 12, borderRadius: 8, border: 'none',
+                    background: 'rgba(255,255,255,0.03)', fontFamily: mono, fontSize: 11,
+                    color: '#444', cursor: 'default',
+                  }}>
+                    AI Portfolio Analysis
+                  </button>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                    <a href="/#pricing" style={{ fontFamily: mono, fontSize: 9, color: GREEN, textDecoration: 'none' }}>Upgrade to Pro</a>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )
