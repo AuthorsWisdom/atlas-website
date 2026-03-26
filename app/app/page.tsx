@@ -5,7 +5,7 @@ import PWAApp from './PWAApp'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'XAtlas',
+  title: 'XAtlas Dashboard',
   description: 'Institutional market intelligence',
 }
 

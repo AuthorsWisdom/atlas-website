@@ -90,7 +90,7 @@ function Nav() {
                     {user.email}
                   </div>
                   <a href="/app" style={{ display: "block", padding: "10px 16px", color: COLORS.text, textDecoration: "none", fontSize: 14 }}>
-                    Open App
+                    Dashboard
                   </a>
                   <a href="/account" style={{ display: "block", padding: "10px 16px", color: COLORS.text, textDecoration: "none", fontSize: 14 }}>
                     My Account
@@ -915,7 +915,7 @@ export default function Home() {
             </p>
           </div>
           {[
-            { heading: "Product", links: [{ label: "Features", href: "#features" }, { label: "Pricing", href: "#pricing" }, { label: "Demo", href: "#demo" }, { label: "Open App", href: "/app" }] },
+            { heading: "Product", links: [{ label: "Features", href: "#features" }, { label: "Pricing", href: "#pricing" }, { label: "Demo", href: "#demo" }, { label: "Dashboard", href: "/app" }] },
             { heading: "Legal", links: [{ label: "Privacy Policy", href: "/privacy" }, { label: "Terms of Service", href: "/terms" }, { label: "Disclaimer", href: "#" }] },
             { heading: "Company", links: [{ label: "About", href: "#" }, { label: "Blog", href: "#" }, { label: "Contact", href: "#" }, { label: "App Store", href: "#" }] },
           ].map(({ heading, links }) => (

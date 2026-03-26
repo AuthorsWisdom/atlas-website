@@ -128,6 +128,68 @@ function useIsDesktop() {
   return d
 }
 
+// ── Market Hours Widget ──
+function MarketHoursWidget() {
+  const [status, setStatus] = useState<{ session: 'pre' | 'regular' | 'post' | 'closed'; nextEvent: string; timeUntil: string }>({ session: 'closed', nextEvent: '', timeUntil: '' })
+
+  useEffect(() => {
+    const update = () => {
+      const et = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
+      const now = new Date(et)
+      const day = now.getDay()
+      const time = now.getHours() * 60 + now.getMinutes()
+      const PRE = 240, OPEN = 570, CLOSE = 960, POST = 1200
+      const isWeekend = day === 0 || day === 6
+
+      let session: 'pre' | 'regular' | 'post' | 'closed' = 'closed'
+      let nextEvent = '', timeUntil = ''
+
+      if (!isWeekend) {
+        if (time >= OPEN && time < CLOSE) {
+          session = 'regular'
+          const m = CLOSE - time
+          nextEvent = 'Closes'; timeUntil = `${Math.floor(m / 60)}h ${m % 60}m`
+        } else if (time >= PRE && time < OPEN) {
+          session = 'pre'
+          const m = OPEN - time
+          nextEvent = 'Opens'; timeUntil = `${Math.floor(m / 60)}h ${m % 60}m`
+        } else if (time >= CLOSE && time < POST) {
+          session = 'post'
+          const m = POST - time
+          nextEvent = 'AH ends'; timeUntil = `${Math.floor(m / 60)}h ${m % 60}m`
+        } else {
+          session = 'closed'
+          const m = time < PRE ? PRE - time : (1440 - time) + PRE
+          nextEvent = 'Pre-market'; timeUntil = `${Math.floor(m / 60)}h ${m % 60}m`
+        }
+      } else {
+        nextEvent = 'Opens Monday'; timeUntil = ''
+      }
+      setStatus({ session, nextEvent, timeUntil })
+    }
+    update()
+    const i = setInterval(update, 60000)
+    return () => clearInterval(i)
+  }, [])
+
+  const cfg = {
+    regular: { label: 'MARKET OPEN', color: D.accent },
+    pre: { label: 'PRE-MARKET', color: D.accentAmber },
+    post: { label: 'AFTER-HOURS', color: D.accentBlue },
+    closed: { label: 'CLOSED', color: D.muted },
+  }[status.session]
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', background: `${cfg.color}10`, border: `1px solid ${cfg.color}30`, borderRadius: 6 }}>
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: cfg.color, animation: status.session === 'regular' ? 'pulse-dot 2s infinite' : 'none', flexShrink: 0 }} />
+      <div>
+        <div style={{ fontSize: 10, fontFamily: D.sans, fontWeight: 700, color: cfg.color, letterSpacing: '0.8px' }}>{cfg.label}</div>
+        {status.timeUntil && <div style={{ fontSize: 10, color: D.muted, fontFamily: D.mono }}>{status.nextEvent} in {status.timeUntil}</div>}
+      </div>
+    </div>
+  )
+}
+
 // ── News Components ──
 interface NewsArticle {
   id: string; title: string; summary: string; source: string
@@ -1545,7 +1607,15 @@ export default function PWAApp() {
             </button>
           )}
 
-          {/* Live indicator */}
+          {/* Market hours + crypto badge */}
+          {!isMobile && <MarketHoursWidget />}
+          {!isMobile && (
+            <div style={{ fontSize: 10, padding: '4px 10px', background: `${D.accent}10`, border: `1px solid ${D.accent}30`, borderRadius: 6, color: D.accent, fontFamily: D.sans, fontWeight: 600 }}>
+              ₿ CRYPTO 24/7
+            </div>
+          )}
+
+          {/* Live data indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{
               width: 7, height: 7, borderRadius: '50%',
@@ -1553,7 +1623,7 @@ export default function PWAApp() {
               boxShadow: isLive ? `0 0 8px ${D.accent}60` : 'none',
             }} />
             <span style={{ fontFamily: D.mono, fontSize: 10, color: isLive ? D.accent : D.muted, fontWeight: 600, letterSpacing: '0.5px' }}>
-              {isLive ? 'LIVE' : !stockMarketOpen ? 'MKT CLOSED' : 'DELAYED'}
+              {isLive ? 'LIVE' : !stockMarketOpen ? 'CLOSED' : 'DELAYED'}
             </span>
           </div>
 
