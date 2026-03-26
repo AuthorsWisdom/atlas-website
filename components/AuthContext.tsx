@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { getSupabase } from '@/lib/supabase-browser'
 
 interface Profile {
@@ -34,14 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const profileFetchedRef = useRef(false)
 
   const fetchProfile = useCallback(async (userId: string, email: string) => {
+    if (profileFetchedRef.current) return
     try {
       const { data } = await getSupabase()
         .from('profiles')
         .select('id, is_pro, subscription_source, subscription_status, stripe_customer_id')
         .eq('id', userId)
         .maybeSingle()
+      profileFetchedRef.current = true
       if (data) {
         setProfile({ ...data, email } as Profile)
       } else {
@@ -52,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
       }
     } catch {
+      profileFetchedRef.current = true
       setProfile({
         id: userId, email, is_pro: false,
         subscription_source: 'none', subscription_status: 'inactive',

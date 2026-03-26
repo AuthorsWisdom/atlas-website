@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
@@ -30,13 +30,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isPro, setIsPro] = useState(false)
 
+  const profileFetchedRef = useRef(false)
+
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('is_pro')
-      .eq('id', userId)
-      .single()
-    setIsPro(data?.is_pro ?? false)
+    if (profileFetchedRef.current) return
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_pro')
+        .eq('id', userId)
+        .maybeSingle()
+      profileFetchedRef.current = true
+      setIsPro(data?.is_pro ?? false)
+    } catch {
+      profileFetchedRef.current = true
+      setIsPro(false)
+    }
   }, [])
 
   useEffect(() => {

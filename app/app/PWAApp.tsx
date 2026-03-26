@@ -348,7 +348,7 @@ export default function PWAApp() {
     const aiExpanded = expandedAI === sym
     const ai = aiData[sym]
     return (
-      <div className={flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''} style={card} {...hoverProps}>
+      <div style={card} {...hoverProps}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
           onClick={() => setDetailTicker(detailTicker === sym ? null : sym)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -360,7 +360,7 @@ export default function PWAApp() {
             <div style={{ textAlign: 'right' }}>
               <div style={{
                 fontFamily: mono, fontSize: 20, fontWeight: 600,
-                color: flash === 'up' ? GREEN : flash === 'down' ? RED : '#f0ede6',
+                color: '#f0ede6',
                 transition: 'color 0.3s',
               }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</div>
               {d?.change_percent != null && (

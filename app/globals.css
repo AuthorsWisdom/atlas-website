@@ -68,14 +68,3 @@ a { color: inherit; text-decoration: none; }
 .delay-2 { animation-delay: 0.2s; opacity: 0; }
 .delay-3 { animation-delay: 0.3s; opacity: 0; }
 .delay-4 { animation-delay: 0.4s; opacity: 0; }
-
-@keyframes flashGreen {
-  0% { background-color: rgba(29, 158, 117, 0.25); }
-  100% { background-color: transparent; }
-}
-@keyframes flashRed {
-  0% { background-color: rgba(226, 75, 74, 0.25); }
-  100% { background-color: transparent; }
-}
-.flash-up { animation: flashGreen 0.8s ease-out; }
-.flash-down { animation: flashRed 0.8s ease-out; }
