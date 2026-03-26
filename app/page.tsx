@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { useAuth } from "@/lib/auth";
 
 const COLORS = {
   bg: "#080A0E",
@@ -20,12 +21,22 @@ const COLORS = {
 const NAV_LINKS = ["Features", "Demo", "Pricing", "FAQ"];
 
 function Nav() {
+  const { user, signOut } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", h);
     return () => window.removeEventListener("scroll", h);
   }, []);
+
+  useEffect(() => {
+    const handler = () => setShowDropdown(false);
+    if (showDropdown) document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showDropdown]);
+
   return (
     <nav style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
@@ -51,14 +62,62 @@ function Nav() {
             onMouseLeave={e => (e.target as HTMLElement).style.color = COLORS.mutedLight}
             >{l}</a>
           ))}
-          <a href="/app" style={{
-            background: COLORS.accent, color: "#000", padding: "8px 20px",
-            borderRadius: 6, fontSize: 13, fontWeight: 700, textDecoration: "none",
-            letterSpacing: 0.5, transition: "opacity 0.2s",
-          }}
-          onMouseEnter={e => (e.target as HTMLElement).style.opacity = "0.85"}
-          onMouseLeave={e => (e.target as HTMLElement).style.opacity = "1"}
-          >Open App</a>
+          {user ? (
+            <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+              <button onClick={() => setShowDropdown(!showDropdown)} style={{
+                width: 36, height: 36,
+                borderRadius: "50%",
+                background: COLORS.accent,
+                border: "none",
+                cursor: "pointer",
+                color: "#000",
+                fontWeight: 700,
+                fontSize: 14,
+              }}>
+                {user.email?.[0]?.toUpperCase() ?? "U"}
+              </button>
+              {showDropdown && (
+                <div style={{
+                  position: "absolute", right: 0, top: 44,
+                  background: COLORS.card,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 12,
+                  padding: "8px 0",
+                  minWidth: 200,
+                  zIndex: 1000,
+                }}>
+                  <div style={{ padding: "8px 16px", color: COLORS.muted, fontSize: 12, borderBottom: `1px solid ${COLORS.border}` }}>
+                    {user.email}
+                  </div>
+                  <a href="/app" style={{ display: "block", padding: "10px 16px", color: COLORS.text, textDecoration: "none", fontSize: 14 }}>
+                    Open App
+                  </a>
+                  <a href="/account" style={{ display: "block", padding: "10px 16px", color: COLORS.text, textDecoration: "none", fontSize: 14 }}>
+                    My Account
+                  </a>
+                  <button onClick={async () => {
+                    await signOut();
+                    setShowDropdown(false);
+                  }} style={{
+                    display: "block", width: "100%", textAlign: "left",
+                    padding: "10px 16px", color: "#E24B4A",
+                    background: "none", border: "none", cursor: "pointer", fontSize: 14,
+                  }}>
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <a href="/app" style={{
+              background: COLORS.accent, color: "#000", padding: "8px 20px",
+              borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none",
+              transition: "opacity 0.2s",
+            }}
+            onMouseEnter={e => (e.target as HTMLElement).style.opacity = "0.85"}
+            onMouseLeave={e => (e.target as HTMLElement).style.opacity = "1"}
+            >Sign In</a>
+          )}
         </div>
       </div>
     </nav>
