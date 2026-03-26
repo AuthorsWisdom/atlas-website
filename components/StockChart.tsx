@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createChart, ColorType, LineSeries, CandlestickSeries, HistogramSeries, type IChartApi } from 'lightweight-charts'
+import { createChart, ColorType, LineSeries, CandlestickSeries, HistogramSeries, LineStyle, type IChartApi, type ISeriesApi } from 'lightweight-charts'
 import { computeRSI, computeMACD, computeSMA, computeBollingerBands } from '@/lib/indicators'
 
 const mono = "'JetBrains Mono', monospace"
@@ -9,12 +9,17 @@ const GREEN = '#1D9E75'
 const RED = '#E24B4A'
 
 interface Bar { time: number; open: number; high: number; low: number; close: number; volume: number }
-interface Props { symbol: string; isCrypto?: boolean }
+interface Props {
+  symbol: string
+  isCrypto?: boolean
+  livePrice?: number
+  isLive?: boolean
+}
 
 const TIMEFRAMES = ['1D', '1W', '1M', '3M', '1Y'] as const
 type Timeframe = typeof TIMEFRAMES[number]
 
-export default function StockChart({ symbol, isCrypto }: Props) {
+export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Props) {
   const chartRef = useRef<HTMLDivElement>(null)
   const [bars, setBars] = useState<Bar[]>([])
   const [loading, setLoading] = useState(true)
@@ -26,6 +31,11 @@ export default function StockChart({ symbol, isCrypto }: Props) {
   const [showRSI, setShowRSI] = useState(false)
   const [showMACD, setShowMACD] = useState(false)
   const chartInstanceRef = useRef<IChartApi | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const seriesRef = useRef<ISeriesApi<any> | null>(null)
+  const lastCandleRef = useRef<Bar | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const priceLineRef = useRef<any>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -50,10 +60,13 @@ export default function StockChart({ symbol, isCrypto }: Props) {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Build chart whenever data or toggles change
+  // Build chart
   useEffect(() => {
     if (!chartRef.current || bars.length === 0) return
     if (chartInstanceRef.current) { chartInstanceRef.current.remove(); chartInstanceRef.current = null }
+    seriesRef.current = null
+    lastCandleRef.current = null
+    priceLineRef.current = null
 
     const desktop = window.innerWidth >= 768
     const h = desktop ? 420 : 320
@@ -72,26 +85,35 @@ export default function StockChart({ symbol, isCrypto }: Props) {
     const closes = bars.map(b => b.close)
     const times = bars.map(b => b.time)
 
-    // Helper: build series data from nullable array
     const buildData = (values: (number | null)[]) =>
       values.reduce<{ time: never; value: number }[]>((acc, v, i) => {
         if (v !== null) acc.push({ time: times[i] as never, value: v })
         return acc
       }, [])
 
-    // ── Price series ──
     if (chartMode === 'candle') {
       const s = chart.addSeries(CandlestickSeries, {
         upColor: GREEN, downColor: RED, borderDownColor: RED, borderUpColor: GREEN,
         wickDownColor: RED, wickUpColor: GREEN,
       })
       s.setData(bars.map(b => ({ time: b.time as never, open: b.open, high: b.high, low: b.low, close: b.close })))
+      seriesRef.current = s
+      lastCandleRef.current = bars[bars.length - 1]
     } else {
-      chart.addSeries(LineSeries, { color: GREEN, lineWidth: 2 })
-        .setData(bars.map(b => ({ time: b.time as never, value: b.close })))
+      const s = chart.addSeries(LineSeries, {
+        color: GREEN, lineWidth: 2,
+        lastValueVisible: true,
+        priceLineVisible: true,
+        priceLineWidth: 1,
+        priceLineColor: `${GREEN}88`,
+        priceLineStyle: LineStyle.Dotted,
+      })
+      s.setData(bars.map(b => ({ time: b.time as never, value: b.close })))
+      seriesRef.current = s
+      lastCandleRef.current = bars[bars.length - 1]
     }
 
-    // ── Bollinger Bands ──
+    // Bollinger Bands
     if (showBB && closes.length >= 20) {
       const bb = computeBollingerBands(closes)
       const upper = buildData(bb.upper)
@@ -104,28 +126,23 @@ export default function StockChart({ symbol, isCrypto }: Props) {
       }
     }
 
-    // ── Moving Averages ──
+    // Moving Averages
     if (showMA) {
-      if (closes.length >= 20) {
-        const d = buildData(computeSMA(closes, 20))
-        if (d.length > 1) chart.addSeries(LineSeries, { color: '#ffffff', lineWidth: 1 }).setData(d)
+      const addMA = (data: (number | null)[], color: string) => {
+        const d = buildData(data)
+        if (d.length > 1) chart.addSeries(LineSeries, { color, lineWidth: 1 }).setData(d)
       }
-      if (closes.length >= 50) {
-        const d = buildData(computeSMA(closes, 50))
-        if (d.length > 1) chart.addSeries(LineSeries, { color: '#fbbf24', lineWidth: 1 }).setData(d)
-      }
-      if (closes.length >= 200) {
-        const d = buildData(computeSMA(closes, 200))
-        if (d.length > 1) chart.addSeries(LineSeries, { color: '#fb923c', lineWidth: 1 }).setData(d)
-      }
+      if (closes.length >= 20) addMA(computeSMA(closes, 20), '#ffffff')
+      if (closes.length >= 50) addMA(computeSMA(closes, 50), '#fbbf24')
+      if (closes.length >= 200) addMA(computeSMA(closes, 200), '#fb923c')
     }
 
-    // ── Volume ──
+    // Volume
     const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol' })
     chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } })
     vol.setData(bars.map(b => ({ time: b.time as never, value: b.volume, color: b.close >= b.open ? `${GREEN}33` : `${RED}33` })))
 
-    // ── MACD (rendered in lightweight-charts with its own price scale) ──
+    // MACD
     if (showMACD && closes.length >= 26) {
       const macd = computeMACD(closes)
       const macdValid = buildData(macd.macd)
@@ -133,16 +150,12 @@ export default function StockChart({ symbol, isCrypto }: Props) {
       if (macdValid.length > 1) {
         chart.priceScale('macd').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } })
         chart.addSeries(LineSeries, { color: GREEN, lineWidth: 1, priceScaleId: 'macd' }).setData(macdValid)
-        if (sigValid.length > 1) {
-          chart.addSeries(LineSeries, { color: '#fb923c', lineWidth: 1, priceScaleId: 'macd' }).setData(sigValid)
-        }
+        if (sigValid.length > 1) chart.addSeries(LineSeries, { color: '#fb923c', lineWidth: 1, priceScaleId: 'macd' }).setData(sigValid)
         const histData = macd.histogram.reduce<{ time: never; value: number; color: string }[]>((acc, v, i) => {
           if (v !== null) acc.push({ time: times[i] as never, value: v, color: v >= 0 ? `${GREEN}88` : `${RED}88` })
           return acc
         }, [])
-        if (histData.length > 1) {
-          chart.addSeries(HistogramSeries, { priceScaleId: 'macd' }).setData(histData)
-        }
+        if (histData.length > 1) chart.addSeries(HistogramSeries, { priceScaleId: 'macd' }).setData(histData)
       }
     }
 
@@ -150,10 +163,34 @@ export default function StockChart({ symbol, isCrypto }: Props) {
     const el = chartRef.current
     const ro = new ResizeObserver(() => { if (el) chart.applyOptions({ width: el.clientWidth }) })
     ro.observe(el)
-    return () => { ro.disconnect(); chart.remove(); chartInstanceRef.current = null }
+    return () => { ro.disconnect(); chart.remove(); chartInstanceRef.current = null; seriesRef.current = null }
   }, [bars, chartMode, showBB, showMA, showMACD, timeframe])
 
-  // RSI rendered as SVG below chart (not in lightweight-charts — cleaner)
+  // ── Live price updates ──
+  useEffect(() => {
+    if (!livePrice || livePrice <= 0 || !seriesRef.current || !lastCandleRef.current) return
+    // Only update live candle on 1D timeframe (intraday bars)
+    if (timeframe !== '1D') return
+
+    const last = lastCandleRef.current
+
+    if (chartMode === 'candle') {
+      const updated = {
+        time: last.time as never,
+        open: last.open,
+        high: Math.max(last.high, livePrice),
+        low: Math.min(last.low, livePrice),
+        close: livePrice,
+      }
+      seriesRef.current.update(updated)
+      lastCandleRef.current = { ...last, high: updated.high, low: updated.low, close: livePrice }
+    } else {
+      seriesRef.current.update({ time: last.time as never, value: livePrice })
+      lastCandleRef.current = { ...last, close: livePrice }
+    }
+  }, [livePrice, timeframe, chartMode])
+
+  // RSI
   const closes = bars.map(b => b.close)
   const rsiValues = showRSI ? computeRSI(closes) : []
 
@@ -171,19 +208,27 @@ export default function StockChart({ symbol, isCrypto }: Props) {
             }}>{tf}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3 }}>
-          {(['candle', 'line'] as const).map(m => (
-            <button key={m} onClick={() => setChartMode(m)} style={{
-              padding: '8px 20px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              fontFamily: mono, fontSize: 15, fontWeight: 600,
-              background: chartMode === m ? GREEN : 'transparent',
-              color: chartMode === m ? '#fff' : '#666',
-            }}>{m === 'candle' ? 'Candle' : 'Line'}</button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isLive && timeframe === '1D' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: GREEN, animation: 'pulse-dot 2s infinite' }} />
+              <span style={{ fontFamily: mono, fontSize: 10, color: GREEN }}>LIVE</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3 }}>
+            {(['candle', 'line'] as const).map(m => (
+              <button key={m} onClick={() => setChartMode(m)} style={{
+                padding: '8px 20px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                fontFamily: mono, fontSize: 15, fontWeight: 600,
+                background: chartMode === m ? GREEN : 'transparent',
+                color: chartMode === m ? '#fff' : '#666',
+              }}>{m === 'candle' ? 'Candle' : 'Line'}</button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Chart area */}
+      {/* Chart */}
       {loading ? (
         <div style={{ height: 320, display: 'flex', alignItems: 'flex-end', padding: '0 20px 40px', gap: 2 }}>
           {Array.from({ length: 40 }, (_, i) => (
@@ -217,7 +262,7 @@ export default function StockChart({ symbol, isCrypto }: Props) {
         ))}
       </div>
 
-      {/* RSI panel (SVG) */}
+      {/* RSI panel */}
       {showRSI && rsiValues.length > 0 && (
         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
