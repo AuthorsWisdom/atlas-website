@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthContext'
 import AuthModal from '@/components/AuthModal'
 import { getSupabase } from '@/lib/supabase-browser'
@@ -54,10 +54,13 @@ export default function AccountClient() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
-  const [polygonKey, setPolygonKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
-  const [keysSaving, setKeysSaving] = useState(false)
-  const [keysSaved, setKeysSaved] = useState(false)
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [keysSaving, setKeysSaving] = useState<string | null>(null)
+  const [keysError, setKeysError] = useState('')
+  const [keyStatus, setKeyStatus] = useState<{ anthropic: boolean; openai: boolean; preferred: string }>({ anthropic: false, openai: false, preferred: 'anthropic' })
+  const [showAnthropicKey, setShowAnthropicKey] = useState(false)
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false)
 
   if (authLoading) {
     return (
@@ -134,23 +137,46 @@ export default function AccountClient() {
     setDeleteConfirm(false)
   }
 
-  async function handleSaveKeys() {
-    setKeysSaving(true)
-    setKeysSaved(false)
+  // Load key status on mount
+  useEffect(() => {
+    if (!user) return
+    fetch(`https://web-production-e9e4b.up.railway.app/keys/status/${user.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setKeyStatus(d) })
+      .catch(() => {})
+  }, [user])
+
+  async function handleSaveKey(provider: 'anthropic' | 'openai') {
+    const key = provider === 'anthropic' ? anthropicKey : openaiKey
+    if (!key) return
+    setKeysSaving(provider)
+    setKeysError('')
     try {
-      await getSupabase()
-        .from('profiles')
-        .update({
-          polygon_api_key: polygonKey || null,
-          anthropic_api_key: anthropicKey || null,
-        })
-        .eq('id', user!.id)
-      setKeysSaved(true)
-      setTimeout(() => setKeysSaved(false), 3000)
-    } catch (err) {
-      console.error('Save keys error:', err)
-    }
-    setKeysSaving(false)
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user!.id, provider, key }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setKeysError(data.error || 'Failed to save'); setKeysSaving(null); return }
+      setKeyStatus(prev => ({ ...prev, [provider]: true }))
+      if (provider === 'anthropic') setAnthropicKey('')
+      else setOpenaiKey('')
+    } catch { setKeysError('Failed to save key') }
+    setKeysSaving(null)
+  }
+
+  async function handleRemoveKey(provider: 'anthropic' | 'openai') {
+    setKeysSaving(provider)
+    try {
+      await fetch('/api/keys', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user!.id, provider }),
+      })
+      setKeyStatus(prev => ({ ...prev, [provider]: false }))
+    } catch { setKeysError('Failed to remove key') }
+    setKeysSaving(null)
   }
 
   return (
@@ -220,69 +246,108 @@ export default function AccountClient() {
           )}
         </Section>
 
-        {/* API Keys */}
+        {/* API Keys (BYOK) */}
         <Section title="API Keys (BYOK)">
           {isPro ? (
             <>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Polygon.io API Key</label>
-                <input
-                  type="password"
-                  placeholder="Enter key..."
-                  value={polygonKey}
-                  onChange={e => setPolygonKey(e.target.value)}
-                  style={inputStyle}
-                />
+              {keysError && <p style={{ fontFamily: mono, fontSize: 10, color: '#f87171', marginBottom: 10 }}>{keysError}</p>}
+
+              {/* Anthropic */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666' }}>Anthropic Claude</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: keyStatus.anthropic ? '#4ade80' : '#333' }} />
+                    <span style={{ fontFamily: mono, fontSize: 9, color: keyStatus.anthropic ? '#4ade80' : '#555' }}>
+                      {keyStatus.anthropic ? 'Using your key' : 'Using XAtlas key'}
+                    </span>
+                  </div>
+                </div>
+                {keyStatus.anthropic ? (
+                  <button onClick={() => handleRemoveKey('anthropic')} disabled={keysSaving === 'anthropic'} style={{
+                    width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(248,113,113,0.2)',
+                    background: 'rgba(248,113,113,0.05)', color: '#f87171', fontFamily: mono, fontSize: 10, cursor: 'pointer',
+                    opacity: keysSaving === 'anthropic' ? 0.5 : 1,
+                  }}>{keysSaving === 'anthropic' ? 'Removing...' : 'Remove Anthropic key'}</button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type={showAnthropicKey ? 'text' : 'password'}
+                      placeholder="sk-ant-..."
+                      value={anthropicKey}
+                      onChange={e => setAnthropicKey(e.target.value)}
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                    <button onClick={() => setShowAnthropicKey(v => !v)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '0 8px', color: '#555', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>
+                      {showAnthropicKey ? 'Hide' : 'Show'}
+                    </button>
+                    <button onClick={() => handleSaveKey('anthropic')} disabled={!anthropicKey || keysSaving === 'anthropic'} style={{
+                      padding: '8px 14px', borderRadius: 6, border: 'none', background: '#4ade80', color: '#052e16',
+                      fontFamily: mono, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      opacity: !anthropicKey || keysSaving === 'anthropic' ? 0.5 : 1,
+                    }}>{keysSaving === 'anthropic' ? '...' : 'Save'}</button>
+                  </div>
+                )}
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic API Key</label>
-                <input
-                  type="password"
-                  placeholder="Enter key..."
-                  value={anthropicKey}
-                  onChange={e => setAnthropicKey(e.target.value)}
-                  style={inputStyle}
-                />
+
+              {/* OpenAI */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666' }}>OpenAI GPT-4</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: keyStatus.openai ? '#4ade80' : '#333' }} />
+                    <span style={{ fontFamily: mono, fontSize: 9, color: keyStatus.openai ? '#4ade80' : '#555' }}>
+                      {keyStatus.openai ? 'Using your key' : 'Using XAtlas key'}
+                    </span>
+                  </div>
+                </div>
+                {keyStatus.openai ? (
+                  <button onClick={() => handleRemoveKey('openai')} disabled={keysSaving === 'openai'} style={{
+                    width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(248,113,113,0.2)',
+                    background: 'rgba(248,113,113,0.05)', color: '#f87171', fontFamily: mono, fontSize: 10, cursor: 'pointer',
+                    opacity: keysSaving === 'openai' ? 0.5 : 1,
+                  }}>{keysSaving === 'openai' ? 'Removing...' : 'Remove OpenAI key'}</button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type={showOpenaiKey ? 'text' : 'password'}
+                      placeholder="sk-..."
+                      value={openaiKey}
+                      onChange={e => setOpenaiKey(e.target.value)}
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                    <button onClick={() => setShowOpenaiKey(v => !v)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '0 8px', color: '#555', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>
+                      {showOpenaiKey ? 'Hide' : 'Show'}
+                    </button>
+                    <button onClick={() => handleSaveKey('openai')} disabled={!openaiKey || keysSaving === 'openai'} style={{
+                      padding: '8px 14px', borderRadius: 6, border: 'none', background: '#4ade80', color: '#052e16',
+                      fontFamily: mono, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      opacity: !openaiKey || keysSaving === 'openai' ? 0.5 : 1,
+                    }}>{keysSaving === 'openai' ? '...' : 'Save'}</button>
+                  </div>
+                )}
               </div>
-              <button onClick={handleSaveKeys} disabled={keysSaving} style={{
-                width: '100%', padding: 10, borderRadius: 8, border: 'none',
-                background: keysSaved ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.06)',
-                color: keysSaved ? '#4ade80' : '#aaa',
-                fontFamily: mono, fontSize: 11, fontWeight: 600, cursor: keysSaving ? 'wait' : 'pointer',
-                opacity: keysSaving ? 0.6 : 1,
-              }}>
-                {keysSaving ? 'Saving...' : keysSaved ? 'Saved' : 'Save keys'}
-              </button>
-              <p style={{ fontFamily: mono, fontSize: 9, color: '#333', marginTop: 8, textAlign: 'center' }}>
-                Keys are encrypted and stored securely. Never sent to XAtlas servers.
+
+              <p style={{ fontFamily: mono, fontSize: 9, color: '#333', textAlign: 'center', lineHeight: 1.6 }}>
+                When you use your own API key, AI analysis costs are charged directly to your account — not XAtlas. Keys are encrypted at rest and never shared.
               </p>
             </>
           ) : (
             <div style={{ position: 'relative' }}>
               <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Polygon.io API Key</label>
-                  <input type="password" disabled placeholder="Enter key..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
+                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic Claude</label>
+                  <input type="password" disabled placeholder="sk-ant-..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
                 </div>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic API Key</label>
-                  <input type="password" disabled placeholder="Enter key..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
+                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>OpenAI GPT-4</label>
+                  <input type="password" disabled placeholder="sk-..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
                 </div>
               </div>
-              <div style={{
-                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
-                </svg>
-                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', textAlign: 'center' }}>
-                  API Keys require a Pro subscription or free trial
-                </p>
-                <a href="/#pricing" style={{
-                  padding: '8px 20px', borderRadius: 6, background: '#4ade80', color: '#052e16',
-                  fontFamily: mono, fontSize: 10, fontWeight: 700, textDecoration: 'none',
-                }}>Start free trial</a>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', textAlign: 'center' }}>API Keys require Pro or free trial</p>
+                <a href="/#pricing" style={{ padding: '8px 20px', borderRadius: 6, background: '#4ade80', color: '#052e16', fontFamily: mono, fontSize: 10, fontWeight: 700, textDecoration: 'none' }}>Start free trial</a>
               </div>
             </div>
           )}

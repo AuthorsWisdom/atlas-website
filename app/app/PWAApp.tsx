@@ -176,15 +176,20 @@ export default function PWAApp() {
     if (!isPro && watchlist.length >= FREE_WATCHLIST_LIMIT) { setSearchError(`Free plan limited to ${FREE_WATCHLIST_LIMIT} symbols`); return }
     setSearchLoading(true)
     try {
-      const quoteUrl = CRYPTO_SYMBOLS.has(s) ? `/api/crypto/${s}` : `${BACKEND}/quote/${s}`
-      const res = await fetch(quoteUrl)
+      const res = await fetch(`/api/validate/${s}`)
       const data = await res.json()
-      if (!res.ok || data.price == null) { setSearchError('Ticker not found'); setSearchLoading(false); return }
+      if (!data.valid) {
+        setSearchError(data.error || 'Ticker not found')
+        setSearchLoading(false)
+        return
+      }
       if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
       setWatchlist(prev => [...prev, s])
       setSearchInput('')
       fetchQuotes([s])
-    } catch { setSearchError('Failed to validate ticker') }
+    } catch {
+      setSearchError('Service unavailable, try again')
+    }
     setSearchLoading(false)
   }
   async function addTicker() { await addTickerDirect(searchInput) }
@@ -199,7 +204,9 @@ export default function PWAApp() {
     if (aiData[sym]?.loading) return
     setAIData(prev => ({ ...prev, [sym]: { loading: true, text: '', factors: [] } }))
     try {
-      const res = await fetch(`${BACKEND}/score/${sym}`)
+      const res = await fetch(`${BACKEND}/score/${sym}`, {
+        headers: { 'X-User-ID': user?.id ?? '' },
+      })
       const data = await res.json()
       const factors = data.factors ?? data.components ? Object.entries(data.components ?? {})
         .filter(([, v]) => v != null)
