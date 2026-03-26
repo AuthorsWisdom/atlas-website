@@ -54,6 +54,20 @@ const mono = "'JetBrains Mono', monospace"
 const GREEN = '#1D9E75'
 const RED = '#E24B4A'
 
+function Sparkline({ data }: { data: number[] }) {
+  if (data.length < 2) return null
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const color = data[data.length - 1] >= data[0] ? GREEN : RED
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * 200},${55 - ((v - min) / range) * 50}`).join(' ')
+  return (
+    <svg viewBox="0 0 200 60" style={{ width: '100%', height: 50, display: 'block' }} preserveAspectRatio="none">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
+  )
+}
+
 function useIsDesktop() {
   const [d, setD] = useState(false)
   useEffect(() => {
@@ -87,6 +101,7 @@ export default function PWAApp() {
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<{ loading: boolean; data: PortfolioData | null }>({ loading: false, data: null })
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [aiUsage, setAIUsage] = useState<{ daily_used: number; monthly_used: number; daily_limit: number; monthly_limit: number } | null>(null)
+  const [sparklines, setSparklines] = useState<Record<string, number[]>>({})
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -98,10 +113,7 @@ export default function PWAApp() {
   const fetchQuotes = useCallback(async (symbols: string[]) => {
     if (!symbols.length) return
     const results = await Promise.allSettled(
-      symbols.map(s => {
-        const url = CRYPTO_SYMBOLS.has(s) ? `/api/crypto/${s}` : `/api/demo/${s}`
-        return fetch(url).then(r => r.ok ? r.json() : null)
-      })
+      symbols.map(s => fetch(`/api/quote/${s}`).then(r => r.ok ? r.json() : null))
     )
     const map: Record<string, QuoteData> = {}
     results.forEach((r, i) => { if (r.status === 'fulfilled' && r.value) map[symbols[i]] = r.value })
@@ -118,6 +130,14 @@ export default function PWAApp() {
   useEffect(() => {
     if (watchlist.length) fetchQuotes(watchlist)
     fetch('/api/demo/macro').then(r => r.ok ? r.json() : null).then(d => { if (d) setMacro(d) }).catch(() => {})
+    // Fetch sparkline data for all symbols
+    const syms = [...new Set([...watchlist])]
+    syms.forEach(s => {
+      if (sparklines[s]) return
+      fetch(`/api/chart/${s}?timeframe=1M`).then(r => r.ok ? r.json() : null).then(d => {
+        if (d?.bars?.length) setSparklines(prev => ({ ...prev, [s]: d.bars.map((b: { close: number }) => b.close) }))
+      }).catch(() => {})
+    })
   }, [fetchQuotes, watchlist])
 
   useEffect(() => {
@@ -281,23 +301,19 @@ export default function PWAApp() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
           onClick={() => setDetailTicker(detailTicker === sym ? null : sym)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>{d?.conviction ?? '—'}</span>
-            <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 600, color: '#f0ede6', letterSpacing: '0.06em' }}>{sym}</span>
+            <span style={{ fontFamily: mono, fontSize: 28, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>{d?.conviction ?? '—'}</span>
+            <span style={{ fontFamily: mono, fontSize: 18, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.06em' }}>{sym}</span>
             {CRYPTO_SYMBOLS.has(sym) && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>CRYPTO</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, color: '#f0ede6' }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</div>
+              <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 600, color: '#f0ede6' }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</div>
               {d?.change_percent != null && (
-                <div style={{ fontFamily: mono, fontSize: 9, color: d.change_percent >= 0 ? '#4ade80' : '#f87171' }}>
+                <div style={{ fontFamily: mono, fontSize: 15, color: d.change_percent >= 0 ? '#4ade80' : '#f87171' }}>
                   {d.change_percent >= 0 ? '+' : ''}{d.change_percent.toFixed(2)}%
                 </div>
               )}
             </div>
-            <button onClick={e => { e.stopPropagation(); setDetailTicker(sym) }} style={{
-              background: 'none', border: `1px solid ${GREEN}44`, borderRadius: 4,
-              color: GREEN, cursor: 'pointer', fontFamily: mono, fontSize: 9, padding: '3px 8px', whiteSpace: 'nowrap',
-            }}>Chart</button>
             {showRemove && (
               <button onClick={e => { e.stopPropagation(); removeTicker(sym) }} style={{
                 background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontFamily: mono, fontSize: 16, padding: '4px',
@@ -305,6 +321,9 @@ export default function PWAApp() {
             )}
           </div>
         </div>
+
+        {/* Sparkline */}
+        {sparklines[sym] && <div style={{ marginTop: 6 }}><Sparkline data={sparklines[sym]} /></div>}
 
         {/* Pro breakdown bars / free blur */}
         {isPro && d && (
@@ -674,18 +693,18 @@ export default function PWAApp() {
                         ...(expanded ? { gridColumn: isDesktop ? 'span 1' : 'span 2' } : {}),
                       }} {...hoverProps}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontFamily: mono, fontSize: 8, color: '#555', letterSpacing: '0.1em' }}>{info.title.toUpperCase()}</div>
+                        <div style={{ fontFamily: mono, fontSize: 13, color: '#555', letterSpacing: '0.1em' }}>{info.title.toUpperCase()}</div>
                         <div style={{
                           width: 6, height: 6, borderRadius: '50%',
                           background: status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? '#f87171'
                             : status.includes('Moderate') || status.includes('Neutral') ? '#fbbf24' : '#4ade80',
                         }} />
                       </div>
-                      <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 600, color: '#f0ede6', marginTop: 4 }}>{ind.fmt}</div>
+                      <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 600, color: '#f0ede6', marginTop: 4 }}>{ind.fmt}</div>
                       {expanded && (
                         <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
-                          <p style={{ fontFamily: mono, fontSize: 10, color: '#888', lineHeight: 1.6, marginBottom: 6 }}>{info.desc}</p>
-                          <div style={{ fontFamily: mono, fontSize: 9, color: status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? '#f87171' : status.includes('Moderate') || status.includes('Neutral') ? '#fbbf24' : '#4ade80' }}>
+                          <p style={{ fontFamily: mono, fontSize: 13, color: '#888', lineHeight: 1.6, marginBottom: 6 }}>{info.desc}</p>
+                          <div style={{ fontFamily: mono, fontSize: 13, padding: '4px 10px', borderRadius: 4, display: 'inline-block', background: (status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? `${RED}15` : status.includes('Moderate') || status.includes('Neutral') ? 'rgba(251,191,36,0.1)' : `${GREEN}15`), color: status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? '#f87171' : status.includes('Moderate') || status.includes('Neutral') ? '#fbbf24' : '#4ade80' }}>
                             {status}
                           </div>
                         </div>
@@ -953,10 +972,10 @@ export default function PWAApp() {
             {TABS.map(t => {
               const active = tab === t.id
               return (
-                <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: active ? 'rgba(74,222,128,0.08)' : 'transparent', marginBottom: 2, transition: 'background 0.15s' }}
+                <button key={t.id} onClick={() => { setDetailTicker(null); setTab(t.id) }} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: active ? 'rgba(74,222,128,0.08)' : 'transparent', marginBottom: 2, transition: 'background 0.15s' }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
                   <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={active ? '#4ade80' : '#666'} strokeWidth={1.8} strokeLinecap="round"><path d={t.icon} /></svg>
-                  <span style={{ fontFamily: mono, fontSize: 12, color: active ? '#4ade80' : '#888', fontWeight: active ? 600 : 400 }}>{t.label}</span>
+                  <span style={{ fontFamily: mono, fontSize: 15, color: active ? '#4ade80' : '#888', fontWeight: active ? 600 : 400 }}>{t.label}</span>
                 </button>
               )
             })}
@@ -999,13 +1018,13 @@ export default function PWAApp() {
 
       {/* Mobile tab bar */}
       {!isDesktop && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 0', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a', zIndex: 50 }}>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 0', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a', zIndex: 1000, pointerEvents: 'all' }}>
           {TABS.map(t => {
             const active = tab === t.id
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 12px' }}>
-                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? '#4ade80' : '#555'} strokeWidth={1.8} strokeLinecap="round"><path d={t.icon} /></svg>
-                <span style={{ fontFamily: mono, fontSize: 9, color: active ? '#4ade80' : '#555', letterSpacing: '0.04em' }}>{t.label}</span>
+              <button key={t.id} onClick={() => { setDetailTicker(null); setTab(t.id) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 12px' }}>
+                <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={active ? '#4ade80' : '#555'} strokeWidth={1.8} strokeLinecap="round"><path d={t.icon} /></svg>
+                <span style={{ fontFamily: mono, fontSize: 13, color: active ? '#4ade80' : '#555', letterSpacing: '0.04em', fontWeight: active ? 600 : 400 }}>{t.label}</span>
               </button>
             )
           })}
