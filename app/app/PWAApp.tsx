@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
 import AuthModal from '@/components/AuthModal'
@@ -88,6 +88,7 @@ export default function PWAApp() {
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [aiUsage, setAIUsage] = useState<{ daily_used: number; monthly_used: number; daily_limit: number; monthly_limit: number } | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
 
@@ -134,7 +135,7 @@ export default function PWAApp() {
   }, [user])
 
   // ── Search autocomplete ──
-  function handleSearchInput(val: string) {
+  const handleSearchInput = useCallback((val: string) => {
     setSearchInput(val)
     setSearchError('')
     setSugIdx(-1)
@@ -148,7 +149,7 @@ export default function PWAApp() {
         setSuggestions(results ?? [])
       } catch { setSuggestions([]) }
     }, 300)
-  }
+  }, [])
 
   function selectSuggestion(sym: string) {
     setSearchInput(sym)
@@ -293,6 +294,10 @@ export default function PWAApp() {
                 </div>
               )}
             </div>
+            <button onClick={e => { e.stopPropagation(); setDetailTicker(sym) }} style={{
+              background: 'none', border: `1px solid ${GREEN}44`, borderRadius: 4,
+              color: GREEN, cursor: 'pointer', fontFamily: mono, fontSize: 9, padding: '3px 8px', whiteSpace: 'nowrap',
+            }}>Chart</button>
             {showRemove && (
               <button onClick={e => { e.stopPropagation(); removeTicker(sym) }} style={{
                 background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontFamily: mono, fontSize: 16, padding: '4px',
@@ -376,6 +381,7 @@ export default function PWAApp() {
       <div ref={searchRef} style={{ position: 'relative', marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           <input
+            ref={searchInputRef}
             type="text" value={searchInput}
             onChange={e => handleSearchInput(e.target.value.toUpperCase())}
             onKeyDown={handleSearchKeyDown}
@@ -467,8 +473,13 @@ export default function PWAApp() {
           </div>
         </div>
 
+        {/* Chart — shown first */}
+        <div style={{ marginBottom: 16 }}>
+          <StockChart symbol={sym} isCrypto={isCrypto} />
+        </div>
+
         {/* Conviction score ring */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '12px 16px', ...card }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, padding: '12px 16px', ...card }}>
           <div style={{ position: 'relative', width: 56, height: 56 }}>
             <svg width="56" height="56" viewBox="0 0 56 56">
               <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
@@ -486,11 +497,6 @@ export default function PWAApp() {
             </div>
             <div style={{ fontFamily: mono, fontSize: 9, color: '#555', marginTop: 2 }}>CONVICTION SCORE</div>
           </div>
-        </div>
-
-        {/* Chart */}
-        <div style={{ marginBottom: 20 }}>
-          <StockChart symbol={sym} isCrypto={isCrypto} />
         </div>
 
         {/* Breakdown bars — Pro only */}
@@ -582,7 +588,7 @@ export default function PWAApp() {
       )
     }
 
-    if (!user && tab !== 'settings') {
+    if (!user && tab !== 'settings' && tab !== 'macro') {
       return (
         <div style={{ padding: '80px 14px', textAlign: 'center' }}>
           <div style={{ fontFamily: mono, fontSize: 28, color: '#4ade80', marginBottom: 16 }}>XATLAS</div>
@@ -709,7 +715,7 @@ export default function PWAApp() {
           {isDesktop && watchlist.length > 0 ? (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr>{['Symbol', 'Price', 'Change', 'Conviction', ''].map(h => (
+                <tr>{['Symbol', 'Price', 'Change', 'Conviction', '', ''].map(h => (
                   <th key={h} style={{ fontFamily: mono, fontSize: 9, color: '#555', textAlign: 'left', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', letterSpacing: '0.1em' }}>{h.toUpperCase()}</th>
                 ))}</tr>
               </thead>
@@ -726,6 +732,9 @@ export default function PWAApp() {
                         {d?.change_percent != null ? `${d.change_percent >= 0 ? '+' : ''}${d.change_percent.toFixed(2)}%` : '—'}
                       </td>
                       <td style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: tierColor(d?.conviction ?? 0), padding: '10px 12px' }}>{d?.conviction ?? '—'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        <button onClick={() => setDetailTicker(sym)} style={{ background: 'none', border: `1px solid ${GREEN}44`, borderRadius: 4, color: GREEN, cursor: 'pointer', fontFamily: mono, fontSize: 9, padding: '3px 8px' }}>Chart</button>
+                      </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                         <button onClick={() => removeTicker(sym)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontFamily: mono, fontSize: 14, padding: '2px 6px', transition: 'color 0.15s' }}
                           onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }} onMouseLeave={e => { e.currentTarget.style.color = '#555' }}>x</button>
