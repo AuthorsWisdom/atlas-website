@@ -168,25 +168,30 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
 
   // ── Live price updates ──
   useEffect(() => {
-    if (!livePrice || livePrice <= 0 || !seriesRef.current || !lastCandleRef.current) return
-    // Only update live candle on 1D timeframe (intraday bars)
-    if (timeframe !== '1D') return
-
+    const series = seriesRef.current
     const last = lastCandleRef.current
+    if (!series || !last) return
 
-    if (chartMode === 'candle') {
-      const updated = {
-        time: last.time as never,
-        open: last.open,
-        high: Math.max(last.high, livePrice),
-        low: Math.min(last.low, livePrice),
-        close: livePrice,
+    const price = typeof livePrice === 'string' ? parseFloat(livePrice) : livePrice
+    if (!price || isNaN(price) || price <= 0) return
+
+    try {
+      if (chartMode === 'candle') {
+        const updated = {
+          time: last.time as never,
+          open: last.open,
+          high: Math.max(last.high, price),
+          low: Math.min(last.low, price),
+          close: price,
+        }
+        series.update(updated)
+        lastCandleRef.current = { ...last, high: updated.high, low: updated.low, close: price }
+      } else {
+        series.update({ time: last.time as never, value: price })
+        lastCandleRef.current = { ...last, close: price }
       }
-      seriesRef.current.update(updated)
-      lastCandleRef.current = { ...last, high: updated.high, low: updated.low, close: livePrice }
-    } else {
-      seriesRef.current.update({ time: last.time as never, value: livePrice })
-      lastCandleRef.current = { ...last, close: livePrice }
+    } catch {
+      // series may have been destroyed between render cycles
     }
   }, [livePrice, timeframe, chartMode])
 
@@ -209,7 +214,7 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {isLive && timeframe === '1D' && (
+          {isLive && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: GREEN, animation: 'pulse-dot 2s infinite' }} />
               <span style={{ fontFamily: mono, fontSize: 10, color: GREEN }}>LIVE</span>

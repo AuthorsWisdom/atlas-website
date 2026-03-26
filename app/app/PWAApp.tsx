@@ -549,7 +549,7 @@ export default function PWAApp() {
 
         {/* Chart — shown first */}
         <div style={{ marginBottom: 16 }}>
-          <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym]?.price} isLive={!!liveQuotes[sym]?.is_live} />
+          <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
         </div>
 
         {/* Conviction score ring */}
