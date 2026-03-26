@@ -47,10 +47,10 @@ function Nav() {
       padding: "0 2rem",
     }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <Image src="/xatlas-logo.png" alt="XAtlas" width={40} height={40} style={{ borderRadius: 8, objectFit: "cover" }} />
           <span style={{ fontFamily: "'Bebas Neue', 'Impact', sans-serif", fontSize: 22, letterSpacing: 2, color: COLORS.text }}>XATLAS</span>
-        </div>
+        </a>
         <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
           {NAV_LINKS.map(l => (
             <a key={l} href={`#${l.toLowerCase()}`} style={{

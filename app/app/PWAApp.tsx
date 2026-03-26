@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
 import AuthModal from '@/components/AuthModal'
@@ -1377,10 +1378,10 @@ export default function PWAApp() {
         padding: '0 24px', zIndex: 200, gap: isMobile ? 16 : 32,
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 8, flexShrink: 0 }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 8, flexShrink: 0, textDecoration: 'none' }}>
           <img src="/xatlas-logo.png" width={28} height={28} style={{ borderRadius: 6 }} alt="XAtlas" />
           {!isMobile && <span style={{ fontFamily: D.sans, fontWeight: 800, color: D.text, fontSize: 16, letterSpacing: '-0.3px' }}>XATLAS</span>}
-        </div>
+        </Link>
 
         {/* Nav tabs — horizontal, Bloomberg style */}
         {!isMobile && (
