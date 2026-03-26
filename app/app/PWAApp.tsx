@@ -131,6 +131,7 @@ export default function PWAApp() {
       .then(({ data }) => { if (data) setWatchlist(data.map((r: { symbol: string }) => r.symbol)) }, () => {})
   }, [user])
 
+  // Initial fetch + macro
   useEffect(() => {
     if (watchlist.length) fetchQuotes(watchlist)
     fetch('/api/demo/macro').then(r => r.ok ? r.json() : null).then(d => { if (d) setMacro(d) }).catch(() => {})
@@ -142,7 +143,34 @@ export default function PWAApp() {
         if (d?.bars?.length) setSparklines(prev => ({ ...prev, [s]: d.bars.map((b: { close: number }) => b.close) }))
       }).catch(() => {})
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchQuotes, watchlist])
+
+  // Live price polling — writes directly to quotes state every 5s
+  useEffect(() => {
+    if (watchlist.length === 0) return
+    const poll = async () => {
+      const results = await Promise.allSettled(
+        watchlist.map(s =>
+          fetch(`/api/quote/${s}?t=${Date.now()}`, { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null)
+        )
+      )
+      const updates: Record<string, QuoteData> = {}
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled' && r.value && r.value.price != null) {
+          updates[watchlist[i]] = r.value
+        }
+      })
+      if (Object.keys(updates).length > 0) {
+        setQuotes(prev => ({ ...prev, ...updates }))
+        setLastUpdated(new Date())
+      }
+    }
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchlist.join(',')])
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -302,15 +330,16 @@ export default function PWAApp() {
   const pad = isDesktop ? '24px 32px' : '16px 14px'
 
   // ── Ticker card (shared between scanner & watchlist mobile) ──
-  // Merge fetched + live quotes (live takes priority for price/change)
+  // quotes state is polled every 5s with fresh data — this is the primary source
+  // liveQuotes from SSE hook is a bonus overlay for even faster updates
   function getQuote(sym: string): QuoteData | undefined {
     const fetched = quotes[sym]
+    if (!fetched) return undefined
     const live = liveQuotes[sym]
-    if (!fetched && !live) return undefined
-    return {
-      ...(fetched ?? { symbol: sym, price: null, change_percent: null, conviction: 0, factors: [], squeeze_score: 0, options_flow_score: 0, macro_score: 0, regime: '', vix: null }),
-      ...(live?.price != null ? { price: live.price, change_percent: live.change_percent } : {}),
+    if (live?.price != null && live.timestamp && (!fetched || live.timestamp > (Date.now() / 1000 - 10))) {
+      return { ...fetched, price: live.price, change_percent: live.change_percent }
     }
+    return fetched
   }
 
   function TickerCard({ sym, showRemove }: { sym: string; showRemove?: boolean }) {
