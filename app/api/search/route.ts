@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+const POLYGON_KEY = process.env.POLYGON_API_KEY
+
+// Fallback local data when Polygon isn't configured
+const LOCAL_TICKERS = [
+  { symbol: 'AAPL', name: 'Apple', type: 'CS' }, { symbol: 'MSFT', name: 'Microsoft', type: 'CS' },
+  { symbol: 'NVDA', name: 'NVIDIA', type: 'CS' }, { symbol: 'AMZN', name: 'Amazon', type: 'CS' },
+  { symbol: 'GOOGL', name: 'Alphabet', type: 'CS' }, { symbol: 'META', name: 'Meta Platforms', type: 'CS' },
+  { symbol: 'TSLA', name: 'Tesla', type: 'CS' }, { symbol: 'JPM', name: 'JPMorgan Chase', type: 'CS' },
+  { symbol: 'V', name: 'Visa', type: 'CS' }, { symbol: 'UNH', name: 'UnitedHealth Group', type: 'CS' },
+  { symbol: 'XOM', name: 'ExxonMobil', type: 'CS' }, { symbol: 'LLY', name: 'Eli Lilly', type: 'CS' },
+  { symbol: 'JNJ', name: 'Johnson & Johnson', type: 'CS' }, { symbol: 'WMT', name: 'Walmart', type: 'CS' },
+  { symbol: 'MA', name: 'Mastercard', type: 'CS' }, { symbol: 'AVGO', name: 'Broadcom', type: 'CS' },
+  { symbol: 'PG', name: 'Procter & Gamble', type: 'CS' }, { symbol: 'HD', name: 'Home Depot', type: 'CS' },
+  { symbol: 'CVX', name: 'Chevron', type: 'CS' }, { symbol: 'MRK', name: 'Merck', type: 'CS' },
+  { symbol: 'ABBV', name: 'AbbVie', type: 'CS' }, { symbol: 'COST', name: 'Costco', type: 'CS' },
+  { symbol: 'PEP', name: 'PepsiCo', type: 'CS' }, { symbol: 'KO', name: 'Coca-Cola', type: 'CS' },
+  { symbol: 'ADBE', name: 'Adobe', type: 'CS' }, { symbol: 'CSCO', name: 'Cisco', type: 'CS' },
+  { symbol: 'CRM', name: 'Salesforce', type: 'CS' }, { symbol: 'NFLX', name: 'Netflix', type: 'CS' },
+  { symbol: 'AMD', name: 'Advanced Micro Devices', type: 'CS' }, { symbol: 'QCOM', name: 'Qualcomm', type: 'CS' },
+  { symbol: 'TXN', name: 'Texas Instruments', type: 'CS' }, { symbol: 'AMGN', name: 'Amgen', type: 'CS' },
+  { symbol: 'INTU', name: 'Intuit', type: 'CS' }, { symbol: 'SBUX', name: 'Starbucks', type: 'CS' },
+  { symbol: 'GE', name: 'GE Aerospace', type: 'CS' }, { symbol: 'CAT', name: 'Caterpillar', type: 'CS' },
+  { symbol: 'IBM', name: 'IBM', type: 'CS' }, { symbol: 'GILD', name: 'Gilead Sciences', type: 'CS' },
+  { symbol: 'BKNG', name: 'Booking Holdings', type: 'CS' }, { symbol: 'BAC', name: 'Bank of America', type: 'CS' },
+  { symbol: 'WFC', name: 'Wells Fargo', type: 'CS' }, { symbol: 'GS', name: 'Goldman Sachs', type: 'CS' },
+  { symbol: 'MS', name: 'Morgan Stanley', type: 'CS' }, { symbol: 'BLK', name: 'BlackRock', type: 'CS' },
+  { symbol: 'PLTR', name: 'Palantir', type: 'CS' }, { symbol: 'SOFI', name: 'SoFi Technologies', type: 'CS' },
+  { symbol: 'GME', name: 'GameStop', type: 'CS' }, { symbol: 'AMC', name: 'AMC Entertainment', type: 'CS' },
+  { symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF' }, { symbol: 'QQQ', name: 'Nasdaq 100 ETF', type: 'ETF' },
+  { symbol: 'IWM', name: 'Russell 2000 ETF', type: 'ETF' }, { symbol: 'GLD', name: 'Gold ETF', type: 'ETF' },
+  { symbol: 'SLV', name: 'Silver ETF', type: 'ETF' }, { symbol: 'DIA', name: 'Dow Jones ETF', type: 'ETF' },
+  { symbol: 'NEE', name: 'NextEra Energy', type: 'CS' }, { symbol: 'DHR', name: 'Danaher', type: 'CS' },
+  { symbol: 'RTX', name: 'RTX Corp', type: 'CS' }, { symbol: 'HON', name: 'Honeywell', type: 'CS' },
+  { symbol: 'AXP', name: 'American Express', type: 'CS' }, { symbol: 'ISRG', name: 'Intuitive Surgical', type: 'CS' },
+  { symbol: 'VRTX', name: 'Vertex Pharmaceuticals', type: 'CS' }, { symbol: 'REGN', name: 'Regeneron', type: 'CS' },
+  { symbol: 'SYK', name: 'Stryker', type: 'CS' }, { symbol: 'PGR', name: 'Progressive', type: 'CS' },
+  { symbol: 'BSX', name: 'Boston Scientific', type: 'CS' }, { symbol: 'KLAC', name: 'KLA Corp', type: 'CS' },
+  { symbol: 'LRCX', name: 'Lam Research', type: 'CS' }, { symbol: 'MCO', name: "Moody's", type: 'CS' },
+  { symbol: 'ADP', name: 'ADP', type: 'CS' }, { symbol: 'ORLY', name: "O'Reilly Auto", type: 'CS' },
+  { symbol: 'MCD', name: "McDonald's", type: 'CS' }, { symbol: 'COIN', name: 'Coinbase', type: 'CS' },
+  { symbol: 'MARA', name: 'Marathon Digital', type: 'CS' }, { symbol: 'RIOT', name: 'Riot Platforms', type: 'CS' },
+  { symbol: 'SNOW', name: 'Snowflake', type: 'CS' }, { symbol: 'DDOG', name: 'Datadog', type: 'CS' },
+  { symbol: 'NET', name: 'Cloudflare', type: 'CS' }, { symbol: 'CRWD', name: 'CrowdStrike', type: 'CS' },
+  { symbol: 'ZS', name: 'Zscaler', type: 'CS' }, { symbol: 'PANW', name: 'Palo Alto Networks', type: 'CS' },
+  { symbol: 'ARM', name: 'Arm Holdings', type: 'CS' }, { symbol: 'SMCI', name: 'Super Micro Computer', type: 'CS' },
+]
+
+export async function GET(request: NextRequest) {
+  const query = request.nextUrl.searchParams.get('q')
+  if (!query || query.length < 1) {
+    return NextResponse.json({ results: [] })
+  }
+
+  // Try Polygon first
+  if (POLYGON_KEY) {
+    try {
+      const res = await fetch(
+        `https://api.polygon.io/v3/reference/tickers?search=${encodeURIComponent(query)}&active=true&market=stocks&limit=8&apiKey=${POLYGON_KEY}`,
+        { next: { revalidate: 300 } },
+      )
+      if (res.ok) {
+        const data = await res.json()
+        return NextResponse.json({
+          results: data.results?.map((t: { ticker: string; name: string; type: string }) => ({
+            symbol: t.ticker,
+            name: t.name,
+            type: t.type,
+          })) ?? [],
+        })
+      }
+    } catch {
+      // Fall through to local
+    }
+  }
+
+  // Fallback: local search
+  const q = query.toUpperCase()
+  const ql = query.toLowerCase()
+  const results = LOCAL_TICKERS
+    .filter(t => t.symbol.startsWith(q) || t.name.toLowerCase().includes(ql))
+    .slice(0, 8)
+
+  return NextResponse.json({ results })
+}
