@@ -1,0 +1,52 @@
+# LOCKED DECISIONS — READ BEFORE TOUCHING ANY CODE
+
+Parent Protocol: https://github.com/AuthorsWisdom/nexus-protocol
+
+---
+
+## 🔴 HARD LOCKS
+
+- Browser NEVER calls Railway or external APIs directly (CSP)
+  → All external data via /api/* proxy or SSE stream
+- No PWA — sw.js and manifest.json DELETED, do not recreate
+- No order execution UI — signals and intelligence display only
+
+## 🟡 ARCHITECTURE LOCKS
+
+- Supabase client: singleton via getSupabase() in lib/supabase.ts
+  → Never call createClient() in components
+  → audit: grep -rn "createClient" app/ lib/
+
+- Live prices: SSE via /api/stream → Railway
+  → Never direct WebSocket to Binance/Alpaca from browser
+  → audit: grep -rn "new WebSocket" app/ hooks/
+
+- Quote proxy: /api/quote/[symbol] handles stocks AND crypto
+  → Single unified route, no separate crypto/stock routing in frontend
+
+- NEXT_PUBLIC_ vars baked at build time
+  → Always redeploy after adding new NEXT_PUBLIC_ vars
+
+- News proxy: /api/news → Railway /news/*
+  → 5-minute cache, always returns array never error
+
+## 🟢 PRODUCT LOCKS
+
+- Supabase Site URL: https://xatlas.io (never mobile deep link)
+- Waitlist OTP creates accounts → signIn fallback (not signUp)
+- Nav label: "Dashboard" for /app route (not "App" or "Terminal")
+- BYOK copy: "Billed directly by your chosen AI provider. No markup."
+- Free tier sees: FRED macro, conviction score number, basic prices
+- Pro tier unlocks: AI text, options flow, breakdown bars, unlimited watchlist
+- Model selector: in AI chat window only, filtered by user's available keys
+- Benzinga blur for free users is intentional — shows premium content exists
+
+## Infrastructure
+
+- Frontend: Vercel (xatlas.io)
+- Backend: Railway (web-production-e9e4b.up.railway.app)
+- Database/Auth: Supabase
+- GitHub: AuthorsWisdom/atlas-website
+
+Last updated: 2026-03-26
+Nexus Protocol: https://github.com/AuthorsWisdom/nexus-protocol
