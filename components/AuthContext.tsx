@@ -36,14 +36,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = useCallback(async (userId: string, email: string) => {
-    const { data } = await getSupabase()
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (data) {
-      setProfile({ ...data, email } as Profile)
-    } else {
+    try {
+      const { data } = await getSupabase()
+        .from('profiles')
+        .select('id, is_pro, subscription_source, subscription_status, stripe_customer_id')
+        .eq('id', userId)
+        .maybeSingle()
+      if (data) {
+        setProfile({ ...data, email } as Profile)
+      } else {
+        setProfile({
+          id: userId, email, is_pro: false,
+          subscription_source: 'none', subscription_status: 'inactive',
+          stripe_customer_id: null,
+        })
+      }
+    } catch {
       setProfile({
         id: userId, email, is_pro: false,
         subscription_source: 'none', subscription_status: 'inactive',

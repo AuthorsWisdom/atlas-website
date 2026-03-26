@@ -8,6 +8,8 @@ const CRYPTO_SYMBOLS = new Set([
   'NEAR', 'OP', 'SHIB', 'FIL',
 ])
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ symbol: string }> },
@@ -21,10 +23,15 @@ export async function GET(
     : `${RAILWAY}/chart/${sym}?timeframe=${timeframe}`
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
-    if (!res.ok) return NextResponse.json({ bars: [], error: 'Chart data unavailable' }, { status: res.status })
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      return NextResponse.json({ bars: [], error: `Chart unavailable (${res.status})` })
+    }
     return NextResponse.json(await res.json())
   } catch {
-    return NextResponse.json({ bars: [], error: 'Chart data unavailable' }, { status: 502 })
+    return NextResponse.json({ bars: [], error: 'Chart timeout' })
   }
 }
