@@ -508,7 +508,7 @@ export default function PWAApp() {
       symbols.map(s => fetch(`/api/quote/${s}`).then(r => r.ok ? r.json() : null))
     )
     const map: Record<string, QuoteData> = {}
-    results.forEach((r, i) => { if (r.status === 'fulfilled' && r.value) map[symbols[i]] = r.value })
+    results.forEach((r, i) => { if (r.status === 'fulfilled' && r.value?.price != null) map[symbols[i]] = r.value })
     setQuotes(prev => ({ ...prev, ...map }))
     setLastUpdated(new Date())
   }, [])

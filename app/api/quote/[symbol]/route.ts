@@ -4,7 +4,7 @@ const RAILWAY = 'https://web-production-e9e4b.up.railway.app'
 const CRYPTO = new Set(['BTC','ETH','SOL','XRP','DOGE','ADA','AVAX','LINK','BNB','MATIC','LTC','DOT','UNI','ATOM','APT','ARB','NEAR','OP','SHIB','FIL'])
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const maxDuration = 15
 
 export async function GET(
   request: NextRequest,
@@ -17,12 +17,19 @@ export async function GET(
     ? `${RAILWAY}/crypto/quote/${sym}`
     : `${RAILWAY}/quote/${sym}`
 
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
+      signal: controller.signal,
       cache: 'no-store',
     })
-    if (!res.ok) return NextResponse.json({ error: 'Quote unavailable' }, { status: res.status })
+    clearTimeout(timeout)
+    if (!res.ok) {
+      console.error(`Quote ${sym}: Railway returned ${res.status}`)
+      return NextResponse.json({ symbol: sym, price: null, change_percent: null, error: 'Quote unavailable' }, { status: 200 })
+    }
     const data = await res.json()
     return new NextResponse(JSON.stringify({
       symbol: sym,
@@ -44,6 +51,7 @@ export async function GET(
       },
     })
   } catch {
-    return NextResponse.json({ error: 'Quote unavailable' }, { status: 502 })
+    clearTimeout(timeout)
+    return NextResponse.json({ symbol: sym, price: null, change_percent: null, error: 'Quote unavailable' }, { status: 200 })
   }
 }
