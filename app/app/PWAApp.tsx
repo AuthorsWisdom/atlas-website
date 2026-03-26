@@ -86,6 +86,7 @@ export default function PWAApp() {
   const [detailTicker, setDetailTicker] = useState<string | null>(null)
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<{ loading: boolean; data: PortfolioData | null }>({ loading: false, data: null })
   const [showPortfolio, setShowPortfolio] = useState(false)
+  const [aiUsage, setAIUsage] = useState<{ daily_used: number; monthly_used: number; daily_limit: number; monthly_limit: number } | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
@@ -121,6 +122,15 @@ export default function PWAApp() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     if (p.get('subscribed') === 'true' && !user) setShowAuth(true)
+  }, [user])
+
+  // Fetch AI usage stats
+  useEffect(() => {
+    if (!user) return
+    fetch(`${BACKEND}/usage/ai`, { headers: { 'X-User-ID': user.id } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setAIUsage(d) })
+      .catch(() => {})
   }, [user])
 
   // ── Search autocomplete ──
@@ -205,8 +215,20 @@ export default function PWAApp() {
     setAIData(prev => ({ ...prev, [sym]: { loading: true, text: '', factors: [] } }))
     try {
       const res = await fetch(`${BACKEND}/score/${sym}`, {
-        headers: { 'X-User-ID': user?.id ?? '' },
+        headers: {
+          'X-User-ID': user?.id ?? '',
+          'X-Is-Pro': isPro ? 'true' : 'false',
+          'X-Has-BYOK': 'false',
+        },
       })
+      if (res.status === 429) {
+        const err = await res.json()
+        const msg = err.detail?.error === 'daily_limit_reached'
+          ? 'Daily AI limit reached. Resets tomorrow. Add your own API key for unlimited access.'
+          : 'Monthly AI limit reached. Add your own API key for unlimited access.'
+        setAIData(prev => ({ ...prev, [sym]: { loading: false, text: msg, factors: ['LIMIT_REACHED'] } }))
+        return
+      }
       const data = await res.json()
       const factors = data.factors ?? data.components ? Object.entries(data.components ?? {})
         .filter(([, v]) => v != null)
@@ -739,7 +761,12 @@ export default function PWAApp() {
                     try {
                       const res = await fetch(`${BACKEND}/portfolio/analyze`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'X-User-ID': user?.id ?? '',
+                          'X-Is-Pro': isPro ? 'true' : 'false',
+                          'X-Has-BYOK': 'false',
+                        },
                         body: JSON.stringify({ symbols: watchlist, regime: macro?.regime ?? 'unknown' }),
                       })
                       const data = await res.json()
@@ -842,6 +869,30 @@ export default function PWAApp() {
                   <a href="/#pricing" style={{ display: 'block', textAlign: 'center', padding: 8, borderRadius: 6, marginTop: 4, background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)', fontFamily: mono, fontSize: 10, fontWeight: 600, textDecoration: 'none' }}>Upgrade to Pro</a>
                 )}
               </div>
+              {/* AI Usage */}
+              {aiUsage && (
+                <div style={card}>
+                  <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>AI USAGE (SERVER KEY)</div>
+                  {[
+                    { label: 'Today', used: aiUsage.daily_used, limit: aiUsage.daily_limit },
+                    { label: 'Month', used: aiUsage.monthly_used, limit: aiUsage.monthly_limit },
+                  ].map(u => (
+                    <div key={u.label} style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>{u.label}</span>
+                        <span style={{ fontFamily: mono, fontSize: 10, color: u.used >= u.limit ? RED : '#aaa' }}>{u.used} / {u.limit}</span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min((u.used / u.limit) * 100, 100)}%`, height: '100%', borderRadius: 2, background: u.used >= u.limit ? RED : GREEN, transition: 'width 0.3s' }} />
+                      </div>
+                    </div>
+                  ))}
+                  <p style={{ fontFamily: mono, fontSize: 9, color: '#444', marginTop: 6 }}>
+                    Using your own API key? No limits apply. <a href="/account" style={{ color: GREEN, textDecoration: 'none' }}>Add key</a>
+                  </p>
+                </div>
+              )}
+
               {/* API Keys — Pro gated */}
               <div style={card}>
                 <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>API KEYS (BYOK)</div>
