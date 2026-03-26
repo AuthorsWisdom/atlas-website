@@ -75,10 +75,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fallback: local search
+  // Fallback: local search (stocks + crypto)
+  const CRYPTO_TICKERS = [
+    { symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO' },
+    { symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO' },
+    { symbol: 'SOL', name: 'Solana', type: 'CRYPTO' },
+    { symbol: 'XRP', name: 'XRP', type: 'CRYPTO' },
+    { symbol: 'DOGE', name: 'Dogecoin', type: 'CRYPTO' },
+    { symbol: 'ADA', name: 'Cardano', type: 'CRYPTO' },
+    { symbol: 'AVAX', name: 'Avalanche', type: 'CRYPTO' },
+    { symbol: 'LINK', name: 'Chainlink', type: 'CRYPTO' },
+    { symbol: 'DOT', name: 'Polkadot', type: 'CRYPTO' },
+    { symbol: 'MATIC', name: 'Polygon', type: 'CRYPTO' },
+    { symbol: 'BNB', name: 'BNB', type: 'CRYPTO' },
+    { symbol: 'LTC', name: 'Litecoin', type: 'CRYPTO' },
+    { symbol: 'UNI', name: 'Uniswap', type: 'CRYPTO' },
+    { symbol: 'ATOM', name: 'Cosmos', type: 'CRYPTO' },
+    { symbol: 'APT', name: 'Aptos', type: 'CRYPTO' },
+    { symbol: 'ARB', name: 'Arbitrum', type: 'CRYPTO' },
+    { symbol: 'NEAR', name: 'NEAR Protocol', type: 'CRYPTO' },
+    { symbol: 'OP', name: 'Optimism', type: 'CRYPTO' },
+  ]
+
   const q = query.toUpperCase()
   const ql = query.toLowerCase()
-  const results = LOCAL_TICKERS
+  const all = [...LOCAL_TICKERS, ...CRYPTO_TICKERS]
+  const results = all
     .filter(t => t.symbol.startsWith(q) || t.name.toLowerCase().includes(ql))
     .slice(0, 8)
 

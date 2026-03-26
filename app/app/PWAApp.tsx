@@ -4,9 +4,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
 import AuthModal from '@/components/AuthModal'
+import StockChart from '@/components/StockChart'
 
 const BACKEND = 'https://web-production-e9e4b.up.railway.app'
 const FREE_WATCHLIST_LIMIT = 3
+
+const CRYPTO_SYMBOLS = new Set([
+  'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'DOT',
+  'MATIC', 'BNB', 'LTC', 'SHIB', 'UNI', 'ATOM', 'APT', 'ARB', 'OP', 'NEAR', 'FIL',
+])
 
 // ── Types ──
 interface QuoteData {
@@ -80,7 +86,10 @@ export default function PWAApp() {
   const fetchQuotes = useCallback(async (symbols: string[]) => {
     if (!symbols.length) return
     const results = await Promise.allSettled(
-      symbols.map(s => fetch(`/api/demo/${s}`).then(r => r.ok ? r.json() : null))
+      symbols.map(s => {
+        const url = CRYPTO_SYMBOLS.has(s) ? `${BACKEND}/crypto/quote/${s}` : `/api/demo/${s}`
+        return fetch(url).then(r => r.ok ? r.json() : null)
+      })
     )
     const map: Record<string, QuoteData> = {}
     results.forEach((r, i) => { if (r.status === 'fulfilled' && r.value) map[symbols[i]] = r.value })
@@ -157,7 +166,8 @@ export default function PWAApp() {
     if (!isPro && watchlist.length >= FREE_WATCHLIST_LIMIT) { setSearchError(`Free plan limited to ${FREE_WATCHLIST_LIMIT} symbols`); return }
     setSearchLoading(true)
     try {
-      const res = await fetch(`${BACKEND}/quote/${s}`)
+      const quoteUrl = CRYPTO_SYMBOLS.has(s) ? `${BACKEND}/crypto/quote/${s}` : `${BACKEND}/quote/${s}`
+      const res = await fetch(quoteUrl)
       const data = await res.json()
       if (!res.ok || data.price == null) { setSearchError('Ticker not found'); setSearchLoading(false); return }
       if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
@@ -233,6 +243,7 @@ export default function PWAApp() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>{d?.conviction ?? '—'}</span>
             <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 600, color: '#f0ede6', letterSpacing: '0.06em' }}>{sym}</span>
+            {CRYPTO_SYMBOLS.has(sym) && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>CRYPTO</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ textAlign: 'right' }}>
@@ -370,12 +381,154 @@ export default function PWAApp() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 600, color: '#f0ede6' }}>{s.symbol}</span>
                   {s.type === 'ETF' && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 4px', borderRadius: 2, background: 'rgba(168,85,247,0.15)', color: '#a855f7' }}>ETF</span>}
+                  {s.type === 'CRYPTO' && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 4px', borderRadius: 2, background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>CRYPTO</span>}
                 </div>
                 <span style={{ fontFamily: mono, fontSize: 10, color: '#555', maxWidth: '50%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
               </button>
             ))}
           </div>
         )}
+      </div>
+    )
+  }
+
+  // ── Ticker detail view ──
+  function renderDetail(sym: string) {
+    const d = quotes[sym]
+    const isCrypto = CRYPTO_SYMBOLS.has(sym)
+    const ai = aiData[sym]
+    if (!ai && isPro) fetchAI(sym)
+
+    return (
+      <div style={{ padding: pad }}>
+        {/* Back button */}
+        <button onClick={() => setDetailTicker(null)} style={{
+          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+          cursor: 'pointer', fontFamily: mono, fontSize: 11, color: '#888', marginBottom: 16, padding: 0,
+        }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 1L3 6l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          Back
+        </button>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: mono, fontSize: 24, fontWeight: 700, color: '#f0ede6' }}>{sym}</span>
+            {isCrypto && <span style={{ fontFamily: mono, fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>CRYPTO</span>}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: '#f0ede6' }}>
+              {d?.price != null ? `$${d.price.toFixed(isCrypto && d.price < 1 ? 6 : 2)}` : '—'}
+            </div>
+            {d?.change_percent != null && (
+              <div style={{ fontFamily: mono, fontSize: 12, color: d.change_percent >= 0 ? '#4ade80' : '#f87171' }}>
+                {d.change_percent >= 0 ? '+' : ''}{d.change_percent.toFixed(2)}%
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Conviction score ring */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '12px 16px', ...card }}>
+          <div style={{ position: 'relative', width: 56, height: 56 }}>
+            <svg width="56" height="56" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
+              <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(d?.conviction ?? 0)} strokeWidth="4"
+                strokeDasharray={`${(d?.conviction ?? 0) * 1.508} 999`}
+                strokeLinecap="round" transform="rotate(-90 28 28)" />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 16, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>
+              {d?.conviction ?? '—'}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: mono, fontSize: 12, fontWeight: 600, color: '#f0ede6' }}>
+              {(d?.conviction ?? 0) >= 75 ? 'STRONG' : (d?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
+            </div>
+            <div style={{ fontFamily: mono, fontSize: 9, color: '#555', marginTop: 2 }}>CONVICTION SCORE</div>
+          </div>
+        </div>
+
+        {/* Chart */}
+        <div style={{ marginBottom: 20 }}>
+          <StockChart symbol={sym} isCrypto={isCrypto} />
+        </div>
+
+        {/* Breakdown bars — Pro only */}
+        {isPro && d ? (
+          <div style={{ ...card, marginBottom: 16 }}>
+            <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SCORE BREAKDOWN</div>
+            {[
+              { l: 'Squeeze', v: d.squeeze_score },
+              { l: 'Options Flow', v: d.options_flow_score },
+              { l: 'Macro', v: d.macro_score },
+            ].map(b => (
+              <div key={b.l} style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <span style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>{b.l}</span>
+                  <span style={{ fontFamily: mono, fontSize: 10, color: tierColor(b.v ?? 50) }}>{b.v ?? '—'}</span>
+                </div>
+                <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                  <div style={{ width: `${b.v ?? 50}%`, height: '100%', borderRadius: 2, background: tierColor(b.v ?? 50) }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !isPro ? (
+          <div style={{ ...card, position: 'relative', marginBottom: 16 }}>
+            <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
+              <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SCORE BREAKDOWN</div>
+              {['Squeeze', 'Options Flow', 'Macro'].map(l => (
+                <div key={l} style={{ marginBottom: 8 }}>
+                  <div style={{ fontFamily: mono, fontSize: 10, color: '#888', marginBottom: 3 }}>{l}</div>
+                  <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+              <a href="/#pricing" style={{ fontFamily: mono, fontSize: 9, color: '#4ade80', textDecoration: 'none', background: 'rgba(74,222,128,0.1)', padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(74,222,128,0.2)' }}>Upgrade to Pro</a>
+            </div>
+          </div>
+        ) : null}
+
+        {/* AI Analysis */}
+        <div style={{ ...card, marginBottom: 16 }}>
+          <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>AI ANALYSIS</div>
+          {isPro ? (
+            ai?.loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[1, 2, 3].map(i => <div key={i} style={{ height: 12, borderRadius: 3, background: 'rgba(255,255,255,0.04)', width: `${100 - i * 15}%` }} />)}
+              </div>
+            ) : ai ? (
+              <>
+                <p style={{ fontFamily: mono, fontSize: 11, color: '#aaa', lineHeight: 1.7, marginBottom: 8 }}>{ai.text}</p>
+                {ai.factors.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {ai.factors.map(f => (
+                      <span key={f} style={{ fontFamily: mono, fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.15)' }}>{f}</span>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p style={{ fontFamily: mono, fontSize: 11, color: '#555' }}>Loading analysis...</p>
+            )
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <div style={{ filter: 'blur(4px)', userSelect: 'none' }}>
+                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', lineHeight: 1.7 }}>
+                  Based on current squeeze conditions and macro regime alignment, this ticker shows moderate-to-strong conviction with favorable positioning across multiple factors...
+                </p>
+              </div>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(0,0,0,0.4)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                <p style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>Upgrade to Pro to see full AI analysis</p>
+                <a href="/#pricing" style={{ fontFamily: mono, fontSize: 9, color: '#4ade80', textDecoration: 'none', background: 'rgba(74,222,128,0.1)', padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(74,222,128,0.2)' }}>Start free trial</a>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -679,7 +832,7 @@ export default function PWAApp() {
           </div>
         )}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: isDesktop ? 32 : 70, maxWidth: isDesktop ? 1200 : undefined, width: '100%' }}>
-          {renderContent()}
+          {detailTicker ? renderDetail(detailTicker) : renderContent()}
         </div>
       </div>
 
