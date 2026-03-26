@@ -260,6 +260,12 @@ export default function PWAApp() {
                   <div style={{ fontFamily: mono, fontSize: 11, color: '#aaa' }}>{user.email}</div>
                 </div>
 
+                <a href="/account" style={{
+                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 8, marginBottom: 10,
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+                  color: '#aaa', fontFamily: mono, fontSize: 11, fontWeight: 600, textDecoration: 'none',
+                }}>Manage account &amp; billing</a>
+
                 <div style={{ background: '#111', borderRadius: 10, padding: 14, border: '1px solid rgba(255,255,255,0.06)', marginBottom: 10 }}>
                   <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SUBSCRIPTION</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

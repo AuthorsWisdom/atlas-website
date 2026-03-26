@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
 
     const session = await getStripe().billingPortal.sessions.create({
       customer: customerId,
-      return_url: 'https://xatlas.io/app',
+      return_url: 'https://xatlas.io/account',
     })
 
     return NextResponse.json({ url: session.url })
