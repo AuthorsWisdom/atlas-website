@@ -222,38 +222,70 @@ export default function AccountClient() {
 
         {/* API Keys */}
         <Section title="API Keys (BYOK)">
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Polygon.io API Key</label>
-            <input
-              type="password"
-              placeholder="Enter key..."
-              value={polygonKey}
-              onChange={e => setPolygonKey(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic API Key</label>
-            <input
-              type="password"
-              placeholder="Enter key..."
-              value={anthropicKey}
-              onChange={e => setAnthropicKey(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-          <button onClick={handleSaveKeys} disabled={keysSaving} style={{
-            width: '100%', padding: 10, borderRadius: 8, border: 'none',
-            background: keysSaved ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.06)',
-            color: keysSaved ? '#4ade80' : '#aaa',
-            fontFamily: mono, fontSize: 11, fontWeight: 600, cursor: keysSaving ? 'wait' : 'pointer',
-            opacity: keysSaving ? 0.6 : 1,
-          }}>
-            {keysSaving ? 'Saving...' : keysSaved ? 'Saved' : 'Save keys'}
-          </button>
-          <p style={{ fontFamily: mono, fontSize: 9, color: '#333', marginTop: 8, textAlign: 'center' }}>
-            Keys are encrypted and stored securely. Never sent to XAtlas servers.
-          </p>
+          {isPro ? (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Polygon.io API Key</label>
+                <input
+                  type="password"
+                  placeholder="Enter key..."
+                  value={polygonKey}
+                  onChange={e => setPolygonKey(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic API Key</label>
+                <input
+                  type="password"
+                  placeholder="Enter key..."
+                  value={anthropicKey}
+                  onChange={e => setAnthropicKey(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <button onClick={handleSaveKeys} disabled={keysSaving} style={{
+                width: '100%', padding: 10, borderRadius: 8, border: 'none',
+                background: keysSaved ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.06)',
+                color: keysSaved ? '#4ade80' : '#aaa',
+                fontFamily: mono, fontSize: 11, fontWeight: 600, cursor: keysSaving ? 'wait' : 'pointer',
+                opacity: keysSaving ? 0.6 : 1,
+              }}>
+                {keysSaving ? 'Saving...' : keysSaved ? 'Saved' : 'Save keys'}
+              </button>
+              <p style={{ fontFamily: mono, fontSize: 9, color: '#333', marginTop: 8, textAlign: 'center' }}>
+                Keys are encrypted and stored securely. Never sent to XAtlas servers.
+              </p>
+            </>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Polygon.io API Key</label>
+                  <input type="password" disabled placeholder="Enter key..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic API Key</label>
+                  <input type="password" disabled placeholder="Enter key..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
+                </div>
+              </div>
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', textAlign: 'center' }}>
+                  API Keys require a Pro subscription or free trial
+                </p>
+                <a href="/#pricing" style={{
+                  padding: '8px 20px', borderRadius: 6, background: '#4ade80', color: '#052e16',
+                  fontFamily: mono, fontSize: 10, fontWeight: 700, textDecoration: 'none',
+                }}>Start free trial</a>
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* Danger zone */}

@@ -491,6 +491,34 @@ export default function PWAApp() {
                   }}>Upgrade to Pro</a>
                 )}
               </div>
+
+              {/* API Keys — Pro gated */}
+              <div style={card}>
+                <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>API KEYS (BYOK)</div>
+                {isPro ? (
+                  <a href="/account" style={{
+                    display: 'block', textAlign: 'center', padding: 8, borderRadius: 6,
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+                    color: '#aaa', fontFamily: mono, fontSize: 10, fontWeight: 600, textDecoration: 'none',
+                  }}>Manage API keys</a>
+                ) : (
+                  <div style={{ position: 'relative', padding: '12px 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
+                      <p style={{ fontFamily: mono, fontSize: 10, color: '#666', textAlign: 'center' }}>
+                        API Keys require Pro or free trial
+                      </p>
+                      <a href="/#pricing" style={{
+                        padding: '6px 16px', borderRadius: 4, background: 'rgba(74,222,128,0.1)',
+                        color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)',
+                        fontFamily: mono, fontSize: 9, fontWeight: 600, textDecoration: 'none',
+                      }}>Start free trial</a>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <div style={card}>
