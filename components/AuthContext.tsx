@@ -53,15 +53,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    getSupabase().auth.getSession().then(({ data: { session } }) => {
+    const supabase = getSupabase()
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' })
         fetchProfile(session.user.id, session.user.email || '')
       }
       setLoading(false)
+    }).catch(() => {
+      setLoading(false)
     })
 
-    const { data: { subscription } } = getSupabase().auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' })
         fetchProfile(session.user.id, session.user.email || '')
