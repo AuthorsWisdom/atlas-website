@@ -142,8 +142,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   fed: '#00C896',
 }
 
-const NewsCard = memo(({ article, compact }: { article: NewsArticle; compact?: boolean }) => {
+const NewsCard = memo(({ article, compact, isPro }: { article: NewsArticle; compact?: boolean; isPro?: boolean }) => {
   const color = CATEGORY_COLORS[article.category] ?? D.muted
+  const isBenzinga = article.source?.toLowerCase().includes('benzinga')
+  const isBlurred = isBenzinga && !isPro
   return (
     <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
       <div style={{
@@ -171,8 +173,20 @@ const NewsCard = memo(({ article, compact }: { article: NewsArticle; compact?: b
         {article.summary && !compact && (
           <div style={{
             fontSize: 12, color: D.muted, lineHeight: 1.6,
+            filter: isBlurred ? 'blur(3px)' : 'none',
+            userSelect: isBlurred ? 'none' : 'auto',
+            position: 'relative',
             display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
-          }}>{article.summary}</div>
+          }}>
+            {article.summary}
+            {isBlurred && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ background: D.surface, padding: '4px 12px', borderRadius: 20, fontSize: 11, color: D.accent, border: `1px solid ${D.accent}40`, fontFamily: D.sans, fontWeight: 600 }}>
+                  Pro — Upgrade to read full Benzinga analysis
+                </span>
+              </div>
+            )}
+          </div>
         )}
         <div style={{ marginTop: compact ? 8 : 12, fontSize: 11, color, fontFamily: D.sans, fontWeight: 600 }}>
           Read more →
@@ -191,7 +205,7 @@ const NewsCardSkeleton = () => (
   </div>
 )
 
-function NewsTab() {
+function NewsTab({ isPro }: { isPro: boolean }) {
   const [news, setNews] = useState<NewsArticle[]>([])
   const [activeFilter, setActiveFilter] = useState<'all' | 'market' | 'sec' | 'regulation' | 'fed'>('all')
   const [loading, setLoading] = useState(true)
@@ -209,7 +223,6 @@ function NewsTab() {
     <>
       <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18, marginBottom: 20 }}>News & Regulations</div>
 
-      {/* Filter pills */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         {([
           { id: 'all' as const, label: 'All News' },
@@ -235,18 +248,44 @@ function NewsTab() {
         </span>
       </div>
 
-      {/* Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
         {loading ? (
           Array(6).fill(0).map((_, i) => <NewsCardSkeleton key={i} />)
         ) : filtered.length > 0 ? (
-          filtered.map((article, i) => <NewsCard key={article.id || i} article={article} />)
+          filtered.map((article, i) => <NewsCard key={article.id || i} article={article} isPro={isPro} />)
         ) : (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>
             No articles found for this filter.
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+function NewsFeed({ limit = 15, isPro }: { limit?: number; isPro: boolean }) {
+  const [news, setNews] = useState<NewsArticle[]>([])
+  useEffect(() => {
+    fetch(`/api/news?type=all&limit=${limit}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setNews(data) })
+      .catch(() => {})
+  }, [limit])
+  return (
+    <>
+      {news.map((article, i) => (
+        <a key={article.id || i} href={article.url} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'block', padding: '10px 0', borderBottom: i < news.length - 1 ? `1px solid ${D.border}` : 'none', textDecoration: 'none' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 9, fontFamily: D.sans, fontWeight: 700, color: CATEGORY_COLORS[article.category] ?? D.muted, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>{article.source}</span>
+            <span style={{ fontSize: 10, color: D.muted, fontFamily: D.mono, flexShrink: 0 }}>
+              {new Date(article.published_at * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: D.text, fontFamily: D.sans, fontWeight: 500, lineHeight: 1.4 }}>{article.title}</div>
+        </a>
+      ))}
+      {news.length === 0 && <div style={{ color: D.muted, fontSize: 12, fontFamily: D.sans, padding: 20, textAlign: 'center' }}>Loading news...</div>}
     </>
   )
 }
@@ -307,6 +346,11 @@ export default function PWAApp() {
   const [aiUsage, setAIUsage] = useState<{ daily_used: number; monthly_used: number; daily_limit: number; monthly_limit: number } | null>(null)
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({})
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showAIChat, setShowAIChat] = useState(false)
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [aiChatLoading, setAiChatLoading] = useState(false)
+  const [windowWidth, setWindowWidth] = useState(0)
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -397,6 +441,51 @@ export default function PWAApp() {
     document.addEventListener('click', handler)
     return () => document.removeEventListener('click', handler)
   }, [showUserMenu])
+
+  // Track window width for responsive layout
+  useEffect(() => {
+    const update = () => setWindowWidth(window.innerWidth)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  // ── AI Chat ──
+  const sendMessage = async (content: string) => {
+    if (!content.trim() || aiChatLoading) return
+    setChatInput('')
+    setAiChatLoading(true)
+    const userMsg = { role: 'user' as const, content }
+    setChatMessages(prev => [...prev, userMsg])
+
+    const context = [
+      selectedTicker && quotes[selectedTicker] ? `${selectedTicker} conviction score: ${quotes[selectedTicker].conviction}/100` : null,
+      macro?.regime ? `Current macro regime: ${macro.regime}` : null,
+      watchlist.length > 0 ? `User watchlist: ${watchlist.join(', ')}` : null,
+    ].filter(Boolean).join('\n')
+
+    try {
+      const res = await fetch(`${BACKEND}/ai/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user?.id ?? '',
+          'X-Is-Pro': isPro ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          messages: [...chatMessages, userMsg],
+          context,
+          symbol: selectedTicker,
+        }),
+      })
+      const data = await res.json()
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.response ?? data.detail ?? 'No response received.' }])
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }])
+    } finally {
+      setAiChatLoading(false)
+    }
+  }
 
   // ── Search autocomplete ──
   const handleSearchInput = useCallback((val: string) => {
@@ -639,6 +728,30 @@ export default function PWAApp() {
 
     return (
       <>
+        {/* Market overview stats bar */}
+        {!isMobile && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 20 }}>
+            {[
+              { label: 'SPY', value: getQuote('SPY')?.price?.toFixed(2), change: getQuote('SPY')?.change_percent },
+              { label: 'QQQ', value: getQuote('QQQ')?.price?.toFixed(2), change: getQuote('QQQ')?.change_percent },
+              { label: 'VIX', value: macro?.vix?.toFixed(1), change: null },
+              { label: 'BTC', value: getQuote('BTC')?.price?.toFixed(0), change: getQuote('BTC')?.change_percent },
+              { label: 'DXY', value: macro?.dxy?.toFixed(2), change: null },
+              { label: '10Y', value: macro?.yield_10y?.toFixed(2), change: null },
+            ].map(stat => (
+              <div key={stat.label} style={{ background: D.surface, borderRadius: 8, padding: '10px 14px', border: `1px solid ${D.border}` }}>
+                <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans, letterSpacing: '1px', fontWeight: 600 }}>{stat.label}</div>
+                <div style={{ fontFamily: D.mono, fontWeight: 700, fontSize: 16, color: D.text, marginTop: 2 }}>{stat.value ?? '—'}</div>
+                {stat.change != null && (
+                  <div style={{ fontSize: 11, color: stat.change >= 0 ? D.accent : D.red, fontFamily: D.mono, fontWeight: 600 }}>
+                    {stat.change >= 0 ? '+' : ''}{stat.change?.toFixed(2)}%
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18 }}>Market Scanner</span>
@@ -774,6 +887,18 @@ export default function PWAApp() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* News sidebar on wide screens */}
+        {windowWidth > 1400 && symbols.length > 0 && (
+          <div style={{
+            background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`,
+            padding: 20, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto',
+            position: 'fixed', right: 24, top: 88, width: 360,
+          }}>
+            <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 14, marginBottom: 16 }}>Latest News</div>
+            <NewsFeed limit={12} isPro={isPro} />
           </div>
         )}
       </>
@@ -1404,8 +1529,22 @@ export default function PWAApp() {
           </div>
         )}
 
-        {/* Right side — live indicator + user */}
+        {/* Right side — AI + live indicator + user */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16 }}>
+          {/* AI Assistant button */}
+          {!isMobile && (
+            <button onClick={() => setShowAIChat(!showAIChat)} style={{
+              padding: '5px 12px', borderRadius: 6,
+              background: showAIChat ? D.accent : 'transparent',
+              border: `1px solid ${D.accent}40`,
+              color: showAIChat ? '#000' : D.accent,
+              fontFamily: D.sans, fontWeight: 600, fontSize: 11,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              ✦ AI
+            </button>
+          )}
+
           {/* Live indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{
@@ -1474,9 +1613,99 @@ export default function PWAApp() {
         {tab === 'scanner' && renderScanner()}
         {tab === 'macro' && renderMacro()}
         {tab === 'watchlist' && renderWatchlist()}
-        {tab === 'news' && <NewsTab />}
+        {tab === 'news' && <NewsTab isPro={isPro} />}
         {tab === 'settings' && renderSettings()}
       </main>
+
+      {/* ── AI CHAT PANEL ── */}
+      {showAIChat && !isMobile && (
+        <div style={{
+          position: 'fixed', right: selectedTicker ? 580 : 0, top: 48, bottom: 0,
+          width: 380, background: '#0A0D14',
+          borderLeft: `1px solid ${D.border}`,
+          zIndex: 250, display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 14 }}>AI Assistant</span>
+            <button onClick={() => setShowAIChat(false)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 16 }}>✕</button>
+          </div>
+
+          {/* Context pills */}
+          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {selectedTicker && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accent}12`, color: D.accent, fontFamily: D.sans, fontWeight: 600 }}>{selectedTicker}</span>}
+            {macro?.regime && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentBlue}12`, color: D.accentBlue, fontFamily: D.sans, fontWeight: 600 }}>{macro.regime}</span>}
+            {watchlist.length > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentAmber}12`, color: D.accentAmber, fontFamily: D.sans, fontWeight: 600 }}>{watchlist.length} watchlist</span>}
+          </div>
+
+          {/* Suggested prompts */}
+          {chatMessages.length === 0 && (
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, color: D.muted, marginBottom: 10, fontFamily: D.sans, fontWeight: 600, letterSpacing: '0.5px' }}>SUGGESTED</div>
+              {[
+                selectedTicker ? `Analyze ${selectedTicker} conviction score` : 'What does the current macro regime mean for equities?',
+                'Which watchlist stock has the strongest setup?',
+                'Summarize today\'s most important news',
+                'What are the key risks right now?',
+              ].map((prompt, i) => (
+                <button key={i} onClick={() => sendMessage(prompt)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', marginBottom: 6,
+                    background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
+                    color: D.muted, fontSize: 12, cursor: 'pointer', fontFamily: D.sans, transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = D.accent; e.currentTarget.style.color = D.text }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.muted }}>
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+            {chatMessages.map((msg, i) => (
+              <div key={i} style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '85%', padding: '10px 14px',
+                  borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                  background: msg.role === 'user' ? `${D.accent}18` : D.card,
+                  border: `1px solid ${msg.role === 'user' ? `${D.accent}35` : D.border}`,
+                  color: D.text, fontSize: 13, lineHeight: 1.6, fontFamily: D.sans, whiteSpace: 'pre-wrap',
+                }}>{msg.content}</div>
+              </div>
+            ))}
+            {aiChatLoading && (
+              <div style={{ display: 'flex', gap: 4, padding: '10px 0' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: D.accent, opacity: 0.6 }} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: '14px 20px', borderTop: `1px solid ${D.border}` }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput) } }}
+                placeholder="Ask about markets, news..."
+                style={{
+                  flex: 1, background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
+                  padding: '10px 14px', color: D.text, fontSize: 13, fontFamily: D.sans, outline: 'none',
+                }}
+              />
+              <button onClick={() => sendMessage(chatInput)} disabled={!chatInput.trim() || aiChatLoading}
+                style={{
+                  padding: '10px 14px', background: D.accent, border: 'none', borderRadius: 8,
+                  color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 14,
+                  opacity: !chatInput.trim() || aiChatLoading ? 0.4 : 1,
+                }}>↑</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── DETAIL PANEL (right slide-in) ── */}
       {renderDetailPanel()}

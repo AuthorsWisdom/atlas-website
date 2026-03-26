@@ -74,7 +74,7 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
     const chart = createChart(chartRef.current, {
       width: chartRef.current.clientWidth,
       height: h,
-      layout: { background: { type: ColorType.Solid, color: '#000000' }, textColor: '#999', fontFamily: mono, fontSize: 13 },
+      layout: { background: { type: ColorType.Solid, color: '#060810' }, textColor: '#8892B0', fontFamily: mono, fontSize: 12, attributionLogo: false },
       grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
       crosshair: { mode: 0 },
       rightPriceScale: { borderColor: '#1a1a1a', minimumWidth: 70 },

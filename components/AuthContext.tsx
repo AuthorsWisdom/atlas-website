@@ -38,29 +38,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string, email: string) => {
     if (profileFetchedRef.current) return
+    const fallback: Profile = {
+      id: userId, email, is_pro: false,
+      subscription_source: 'none', subscription_status: 'inactive',
+      stripe_customer_id: null,
+    }
     try {
-      const { data } = await getSupabase()
+      const { data, error } = await getSupabase()
         .from('profiles')
         .select('id, is_pro, subscription_source, subscription_status, stripe_customer_id')
         .eq('id', userId)
         .maybeSingle()
       profileFetchedRef.current = true
-      if (data) {
+      if (error) {
+        console.error('[AuthContext] Profile fetch error:', error.message, error.code)
+        setProfile(fallback)
+      } else if (data) {
+        console.log('[AuthContext] Profile loaded: is_pro =', data.is_pro)
         setProfile({ ...data, email } as Profile)
       } else {
-        setProfile({
-          id: userId, email, is_pro: false,
-          subscription_source: 'none', subscription_status: 'inactive',
-          stripe_customer_id: null,
-        })
+        console.log('[AuthContext] No profile row found, defaulting to free')
+        setProfile(fallback)
       }
-    } catch {
+    } catch (e) {
+      console.error('[AuthContext] Profile fetch exception:', e)
       profileFetchedRef.current = true
-      setProfile({
-        id: userId, email, is_pro: false,
-        subscription_source: 'none', subscription_status: 'inactive',
-        stripe_customer_id: null,
-      })
+      setProfile(fallback)
     }
   }, [])
 
