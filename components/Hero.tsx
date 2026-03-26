@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export default function Hero() {
   const [email, setEmail] = useState('')
@@ -21,11 +22,22 @@ export default function Hero() {
     setLoading(true)
     setError('')
     try {
+      // Send waitlist emails via existing API
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       })
+
+      // Also create a Supabase account with magic link
+      // This converts waitlist signups directly into app users
+      await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: 'https://xatlas.io/app',
+        },
+      })
+
       const data = await res.json()
       if (res.ok) {
         setSubmitted(true)

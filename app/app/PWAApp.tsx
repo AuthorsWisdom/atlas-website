@@ -100,7 +100,7 @@ export default function PWAApp() {
 
   return (
     <div style={{ background: '#080808', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
+      {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
 
       {/* Top bar */}
       <div style={{

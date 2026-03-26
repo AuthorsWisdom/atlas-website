@@ -128,7 +128,7 @@ export default function Pricing() {
 
   return (
     <>
-    {showAuth && <AuthModal onClose={() => { setShowAuth(false); setPendingPlan(null) }} onSuccess={handleAuthSuccess} />}
+    {showAuth && <AuthModal open={true} onClose={() => { setShowAuth(false); setPendingPlan(null) }} onSuccess={handleAuthSuccess} />}
     <section id="pricing" style={{
       maxWidth: '1100px',
       margin: '0 auto',

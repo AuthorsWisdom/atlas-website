@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import ServiceWorker from '@/components/ServiceWorker'
 import InstallPrompt from '@/components/InstallPrompt'
+import { AuthProvider } from '@/lib/auth'
 
 export const metadata: Metadata = {
   title: 'XAtlas — Institutional Intelligence for Your iPhone',
@@ -34,9 +35,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body>
-        {children}
-        <ServiceWorker />
-        <InstallPrompt />
+        <AuthProvider>
+          {children}
+          <ServiceWorker />
+          <InstallPrompt />
+        </AuthProvider>
       </body>
     </html>
   )
