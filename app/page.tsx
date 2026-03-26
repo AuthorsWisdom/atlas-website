@@ -432,7 +432,7 @@ function NewsSection() {
               SEC filings, Fed announcements, financial regulations — updated every 5 minutes from free government and market data sources.
             </p>
           </div>
-          <a href="/app" style={{
+          <a href="/app?tab=news" style={{
             padding: "10px 20px", background: "transparent",
             border: `1px solid ${COLORS.border}`, borderRadius: 8,
             color: COLORS.mutedLight, textDecoration: "none", fontSize: 13, fontWeight: 500,

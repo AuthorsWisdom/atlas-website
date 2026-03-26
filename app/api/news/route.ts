@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 const BACKEND = process.env.RAILWAY_URL || 'https://web-production-e9e4b.up.railway.app'
 
@@ -8,20 +9,19 @@ export async function GET(request: Request) {
   const symbol = searchParams.get('symbol') ?? ''
   const limit = searchParams.get('limit') ?? '40'
 
-  let endpoint = `${BACKEND}/news/${type}`
-  const params = new URLSearchParams()
-  if (symbol) params.set('symbol', symbol)
-  params.set('limit', limit)
-  endpoint += `?${params.toString()}`
+  const url = symbol
+    ? `${BACKEND}/news/${type}?symbol=${encodeURIComponent(symbol)}&limit=${limit}`
+    : `${BACKEND}/news/${type}?limit=${limit}`
 
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(url, {
       signal: AbortSignal.timeout(15000),
-      next: { revalidate: 300 },
+      cache: 'no-store',
     })
-    if (!res.ok) return Response.json([], { status: res.status })
-    return Response.json(await res.json())
+    if (!res.ok) return Response.json([], { status: 200 })
+    const data = await res.json()
+    return Response.json(data)
   } catch {
-    return Response.json([], { status: 502 })
+    return Response.json([])
   }
 }

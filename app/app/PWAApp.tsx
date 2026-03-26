@@ -375,6 +375,10 @@ export default function PWAApp() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     if (p.get('subscribed') === 'true' && !user) setShowAuth(true)
+    const urlTab = p.get('tab')
+    if (urlTab && ['scanner', 'macro', 'watchlist', 'news', 'settings'].includes(urlTab)) {
+      setTab(urlTab as Tab)
+    }
   }, [user])
 
   useEffect(() => {
