@@ -5,6 +5,7 @@ import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
 import AuthModal from '@/components/AuthModal'
 import StockChart from '@/components/StockChart'
+import OptionsFlowPanel from '@/components/OptionsFlowPanel'
 import { useLivePrices } from '@/hooks/useLivePrices'
 
 const BACKEND = 'https://web-production-e9e4b.up.railway.app'
@@ -573,6 +574,13 @@ export default function PWAApp() {
             </div>
           </div>
         ) : null}
+
+        {/* Options Flow (stocks only) */}
+        {!isCrypto && (
+          <div style={{ marginBottom: 16 }}>
+            <OptionsFlowPanel symbol={sym} isPro={isPro} />
+          </div>
+        )}
 
         {/* AI Analysis */}
         <div style={{ ...card, marginBottom: 16 }}>
