@@ -93,8 +93,9 @@ export default function OptionsIntelligence({ symbol, isPro }: { symbol: string;
 
   if (!latestRSI && !latestMACD) {
     return (
-      <div style={{ background: '#111', borderRadius: 10, padding: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: mono, fontSize: 13, color: '#555' }}>Options indicators unavailable for {symbol}</div>
+      <div style={{ background: '#0B0E1A', borderRadius: 10, padding: 16, border: '1px solid #1A2038' }}>
+        <div style={{ fontSize: 13, color: '#4A5575', fontFamily: "'DM Sans', sans-serif" }}>Options indicators available during market hours</div>
+        <div style={{ fontSize: 11, color: '#4A5575', marginTop: 4 }}>RSI and MACD signals refresh when options chains are live</div>
       </div>
     )
   }

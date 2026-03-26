@@ -44,6 +44,8 @@ interface QuoteData {
 interface MacroData {
   fed_rate: number; yield_10y: number; yield_2y: number; vix: number
   dxy: number; unemployment: number; risk_on_score: number; regime: string; credit_spread: number
+  yield_curve?: number; cpi?: number; pce?: number; m2?: number
+  jobless_claims?: number; retail_sales?: number; housing?: number; gdp?: number; pmi?: number | null
 }
 interface SearchResult { symbol: string; name: string; type: string }
 interface PortfolioData {
@@ -385,6 +387,75 @@ function TickerNews({ symbol }: { symbol: string }) {
   )
 }
 
+function WatchlistNewsFeed({ symbols, isPro }: { symbols: string[]; isPro: boolean }) {
+  const [news, setNews] = useState<NewsArticle[]>([])
+  useEffect(() => {
+    if (!symbols.length) return
+    Promise.all(
+      symbols.slice(0, 5).map(sym =>
+        fetch(`/api/news?type=market&symbol=${sym}&limit=3`).then(r => r.json()).catch(() => [])
+      )
+    ).then(results => {
+      const all = (results.flat() as NewsArticle[]).filter(a => a && a.title).sort((a, b) => b.published_at - a.published_at)
+      setNews(all.slice(0, 9))
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbols.join(',')])
+
+  if (news.length === 0) return null
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
+      {news.map((article, i) => <NewsCard key={article.id || i} article={article} isPro={isPro} compact />)}
+    </div>
+  )
+}
+
+function MacroNewsFeed() {
+  const [news, setNews] = useState<NewsArticle[]>([])
+  useEffect(() => {
+    fetch('/api/news?type=regulations&limit=8')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setNews(data) })
+      .catch(() => {})
+  }, [])
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {news.map((article, i) => (
+        <a key={article.id || i} href={article.url} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '12px 0', borderBottom: i < news.length - 1 ? `1px solid ${D.border}` : 'none', textDecoration: 'none' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 9, fontFamily: D.sans, fontWeight: 700, color: CATEGORY_COLORS[article.category] ?? D.muted, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>{article.source}</span>
+            </div>
+            <div style={{ fontSize: 13, color: D.text, fontFamily: D.sans, fontWeight: 500, lineHeight: 1.4 }}>{article.title}</div>
+          </div>
+          <span style={{ fontSize: 10, color: D.muted, fontFamily: D.mono, flexShrink: 0, marginTop: 2 }}>
+            {new Date(article.published_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+        </a>
+      ))}
+      {news.length === 0 && <div style={{ color: D.muted, fontSize: 12, fontFamily: D.sans, padding: 20, textAlign: 'center' }}>Loading regulatory news...</div>}
+    </div>
+  )
+}
+
+function NewsFeedInline({ limit = 6, isPro }: { limit?: number; isPro: boolean }) {
+  const [news, setNews] = useState<NewsArticle[]>([])
+  useEffect(() => {
+    fetch(`/api/news?type=all&limit=${limit}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setNews(data) })
+      .catch(() => {})
+  }, [limit])
+  return (
+    <>
+      {news.map((article, i) => (
+        <NewsCard key={article.id || i} article={article} isPro={isPro} compact />
+      ))}
+    </>
+  )
+}
+
 // ── Main App ──
 export default function PWAApp() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
@@ -417,6 +488,7 @@ export default function PWAApp() {
   const [aiDragging, setAiDragging] = useState(false)
   const aiDragOffset = useRef({ x: 0, y: 0 })
   const [windowWidth, setWindowWidth] = useState(0)
+  const [overviewQuotes, setOverviewQuotes] = useState<Record<string, { price: number; change_percent: number }>>({})
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState('claude-sonnet-4-5')
   const [selectedOpenAIModel, setSelectedOpenAIModel] = useState('gpt-4o-mini')
   const [preferredProvider, setPreferredProvider] = useState('anthropic')
@@ -459,6 +531,26 @@ export default function PWAApp() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchQuotes, watchlist])
+
+  // Fetch market overview tickers (SPY/QQQ/BTC) — independent of watchlist
+  useEffect(() => {
+    const fetchOverview = async () => {
+      const results = await Promise.allSettled(
+        ['SPY', 'QQQ', 'BTC'].map(s =>
+          fetch(`/api/quote/${s}?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+        )
+      )
+      const map: Record<string, { price: number; change_percent: number }> = {}
+      ;['SPY', 'QQQ', 'BTC'].forEach((s, i) => {
+        const r = results[i]
+        if (r.status === 'fulfilled' && r.value?.price != null) map[s] = r.value
+      })
+      setOverviewQuotes(prev => ({ ...prev, ...map }))
+    }
+    fetchOverview()
+    const interval = setInterval(fetchOverview, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Re-fetch scores when Pro status loads (profile is async)
   useEffect(() => {
@@ -835,12 +927,12 @@ export default function PWAApp() {
         {!isMobile && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 20 }}>
             {[
-              { label: 'SPY', value: getQuote('SPY')?.price?.toFixed(2), change: getQuote('SPY')?.change_percent },
-              { label: 'QQQ', value: getQuote('QQQ')?.price?.toFixed(2), change: getQuote('QQQ')?.change_percent },
+              { label: 'SPY', value: overviewQuotes['SPY']?.price?.toFixed(2), change: overviewQuotes['SPY']?.change_percent },
+              { label: 'QQQ', value: overviewQuotes['QQQ']?.price?.toFixed(2), change: overviewQuotes['QQQ']?.change_percent },
               { label: 'VIX', value: macro?.vix?.toFixed(1), change: null },
-              { label: 'BTC', value: getQuote('BTC')?.price?.toFixed(0), change: getQuote('BTC')?.change_percent },
+              { label: 'BTC', value: overviewQuotes['BTC']?.price?.toFixed(0), change: overviewQuotes['BTC']?.change_percent },
               { label: 'DXY', value: macro?.dxy?.toFixed(2), change: null },
-              { label: '10Y', value: macro?.yield_10y?.toFixed(2), change: null },
+              { label: '10Y', value: macro?.yield_10y ? `${macro.yield_10y.toFixed(2)}%` : null, change: null },
             ].map(stat => (
               <div key={stat.label} style={{ background: D.surface, borderRadius: 8, padding: '10px 14px', border: `1px solid ${D.border}` }}>
                 <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans, letterSpacing: '1px', fontWeight: 600 }}>{stat.label}</div>
@@ -873,8 +965,6 @@ export default function PWAApp() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: windowWidth > 1400 ? '1fr 320px' : '1fr', gap: 20, alignItems: 'start' }}>
-        <div>
         {symbols.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 16 }}>No tickers in your watchlist</p>
@@ -994,20 +1084,19 @@ export default function PWAApp() {
             })}
           </div>
         )}
-        </div>
 
-        {/* News sidebar — in document flow, sticky */}
-        {windowWidth > 1400 && (
-          <div style={{
-            position: 'sticky', top: 68,
-            maxHeight: 'calc(100vh - 88px)', overflowY: 'auto',
-            background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: 16,
-          }}>
-            <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 12 }}>Latest News</div>
-            <NewsFeed limit={12} isPro={isPro} />
+        {/* Latest News — stacked below scanner */}
+        {symbols.length > 0 && (
+          <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: 20, marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' as const }}>Latest News</span>
+              <button onClick={() => setTab('news')} style={{ background: 'none', border: 'none', color: D.accent, fontSize: 11, fontFamily: D.sans, fontWeight: 600, cursor: 'pointer' }}>View all →</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(3, 1fr)' : '1fr', gap: 12 }}>
+              <NewsFeedInline limit={6} isPro={isPro} />
+            </div>
           </div>
         )}
-        </div>
       </>
     )
   }
@@ -1015,13 +1104,31 @@ export default function PWAApp() {
   // ── MACRO TAB ──
   function renderMacro() {
     const indicators = macro ? [
-      { key: 'fed_rate', value: macro.fed_rate, fmt: `${macro.fed_rate.toFixed(2)}%` },
-      { key: 'vix', value: macro.vix, fmt: macro.vix.toFixed(1) },
-      { key: 'yield_10y', value: macro.yield_10y, fmt: `${macro.yield_10y.toFixed(2)}%` },
-      { key: 'dxy', value: macro.dxy, fmt: macro.dxy.toFixed(2) },
-      { key: 'unemployment', value: macro.unemployment, fmt: `${macro.unemployment.toFixed(1)}%` },
-      { key: 'credit_spread', value: macro.credit_spread, fmt: `${macro.credit_spread.toFixed(2)}%` },
+      { key: 'fed_rate', value: macro.fed_rate, fmt: `${macro.fed_rate?.toFixed(2)}%` },
+      { key: 'vix', value: macro.vix, fmt: macro.vix?.toFixed(1) },
+      { key: 'yield_10y', value: macro.yield_10y, fmt: `${macro.yield_10y?.toFixed(2)}%` },
+      { key: 'dxy', value: macro.dxy, fmt: macro.dxy?.toFixed(2) },
+      { key: 'unemployment', value: macro.unemployment, fmt: `${macro.unemployment?.toFixed(1)}%` },
+      { key: 'credit_spread', value: macro.credit_spread, fmt: `${macro.credit_spread?.toFixed(2)}%` },
+      ...(macro.yield_curve != null ? [{ key: 'yield_curve' as const, value: macro.yield_curve, fmt: `${macro.yield_curve?.toFixed(2)}%` }] : []),
+      ...(macro.cpi != null ? [{ key: 'cpi' as const, value: macro.cpi, fmt: macro.cpi?.toFixed(1) }] : []),
+      ...(macro.pce != null ? [{ key: 'pce' as const, value: macro.pce, fmt: macro.pce?.toFixed(1) }] : []),
+      ...(macro.m2 != null ? [{ key: 'm2' as const, value: macro.m2, fmt: `$${(macro.m2 / 1000)?.toFixed(1)}T` }] : []),
+      ...(macro.jobless_claims != null ? [{ key: 'jobless_claims' as const, value: macro.jobless_claims, fmt: `${(macro.jobless_claims / 1000)?.toFixed(0)}K` }] : []),
+      ...(macro.retail_sales != null ? [{ key: 'retail_sales' as const, value: macro.retail_sales, fmt: `$${(macro.retail_sales / 1000)?.toFixed(0)}B` }] : []),
     ] : []
+
+    const extraInfo: Record<string, { title: string; desc: string; getStatus: (v: number) => string }> = {
+      yield_curve: { title: 'Yield Curve', desc: '10Y minus 2Y Treasury spread. Inversion (negative) historically precedes recessions.', getStatus: v => v < 0 ? 'Inverted' : v < 0.5 ? 'Flat' : 'Normal' },
+      cpi: { title: 'CPI Index', desc: 'Consumer Price Index. Measures inflation in consumer goods and services.', getStatus: v => v > 310 ? 'Elevated' : 'Moderate' },
+      pce: { title: 'PCE', desc: 'Personal Consumption Expenditures. The Fed\'s preferred inflation gauge.', getStatus: v => v > 20000 ? 'Elevated' : 'Moderate' },
+      m2: { title: 'M2 Money Supply', desc: 'Total money supply including savings. Expansion signals liquidity, contraction signals tightening.', getStatus: v => v > 21000 ? 'Expansionary' : 'Neutral' },
+      jobless_claims: { title: 'Jobless Claims', desc: 'Weekly initial unemployment claims. Rising claims signal labor market weakness.', getStatus: v => v > 250000 ? 'Elevated' : v > 200000 ? 'Moderate' : 'Low' },
+      retail_sales: { title: 'Retail Sales', desc: 'Monthly retail and food services sales. Measures consumer spending strength.', getStatus: v => v > 700000 ? 'Strong' : 'Moderate' },
+    }
+    const allInfo = { ...MACRO_INFO, ...extraInfo }
+
+    const regimeColor = (macro?.risk_on_score ?? 0) >= 55 ? D.accent : D.red
 
     return (
       <>
@@ -1031,17 +1138,13 @@ export default function PWAApp() {
           <>
             {/* Regime banner */}
             <div style={{
-              background: macro.regime === 'Risk-On' ? `${D.accent}0C` : `${D.red}0C`,
-              border: `1px solid ${macro.regime === 'Risk-On' ? D.accent + '30' : D.red + '30'}`,
+              background: `${regimeColor}0C`, border: `1px solid ${regimeColor}30`,
               borderRadius: 10, padding: '20px 24px', marginBottom: 20,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
               <div>
                 <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 4 }}>Market Regime</div>
-                <div style={{
-                  fontFamily: D.sans, fontSize: 22, fontWeight: 800,
-                  color: macro.regime === 'Risk-On' ? D.accent : D.red,
-                }}>{macro.regime.toUpperCase()}</div>
+                <div style={{ fontFamily: D.sans, fontSize: 22, fontWeight: 800, color: regimeColor }}>{macro.regime?.toUpperCase()}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontFamily: D.mono, fontSize: 36, fontWeight: 700, color: tierColor(macro.risk_on_score), lineHeight: 1 }}>{macro.risk_on_score}</div>
@@ -1049,15 +1152,16 @@ export default function PWAApp() {
               </div>
             </div>
 
-            {/* 4-column (desktop) / 2-column (mobile) indicator grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: 12 }}>
+            {/* Indicator grid — 4 col desktop, 2 col mobile */}
+            <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: 12 }}>
               {indicators.map(ind => {
-                const info = MACRO_INFO[ind.key]
+                const info = allInfo[ind.key]
+                if (!info) return null
                 const expanded = expandedMacro === ind.key
                 const status = info.getStatus(ind.value)
-                const statusColor = status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') || status.includes('Restrictive')
+                const statusColor = status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') || status.includes('Restrictive') || status.includes('Inverted')
                   ? D.red
-                  : status.includes('Moderate') || status.includes('Neutral')
+                  : status.includes('Moderate') || status.includes('Neutral') || status.includes('Flat')
                     ? D.accentAmber
                     : D.accent
                 return (
@@ -1072,17 +1176,11 @@ export default function PWAApp() {
                     onMouseEnter={e => e.currentTarget.style.borderColor = D.border + 'cc'}
                     onMouseLeave={e => e.currentTarget.style.borderColor = D.border}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', fontWeight: 600 }}>
-                        {info.title}
-                      </div>
+                      <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', fontWeight: 600 }}>{info.title}</div>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
                     </div>
-                    <div style={{ fontFamily: D.mono, fontSize: 26, fontWeight: 700, color: D.text, margin: '6px 0 4px' }}>
-                      {ind.fmt}
-                    </div>
-                    <div style={{ fontSize: 11, fontFamily: D.sans, color: statusColor, fontWeight: 500 }}>
-                      {status}
-                    </div>
+                    <div style={{ fontFamily: D.mono, fontSize: 24, fontWeight: 700, color: D.text, margin: '6px 0 4px' }}>{ind.fmt}</div>
+                    <div style={{ fontSize: 11, fontFamily: D.sans, color: statusColor, fontWeight: 500 }}>{status}</div>
                     {expanded && (
                       <div style={{ marginTop: 12, borderTop: `1px solid ${D.border}`, paddingTop: 12 }}>
                         <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, lineHeight: 1.6 }}>{info.desc}</p>
@@ -1091,6 +1189,12 @@ export default function PWAApp() {
                   </div>
                 )
               })}
+            </div>
+
+            {/* Fed & Regulatory News below indicators */}
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 13, fontFamily: D.sans, fontWeight: 700, color: D.text, marginBottom: 12 }}>Fed & Regulatory News</div>
+              <MacroNewsFeed />
             </div>
           </>
         ) : (
@@ -1173,88 +1277,50 @@ export default function PWAApp() {
           </div>
         )}
 
-        {isDesktop && watchlist.length > 0 ? (
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 2px' }}>
-            <thead>
-              <tr>
-                {['SYMBOL', 'PRICE', 'CHANGE', 'CONVICTION', '', ''].map((h, i) => (
-                  <th key={i} style={{
-                    textAlign: i === 0 ? 'left' : 'right',
-                    padding: '8px 12px', color: D.muted,
-                    fontSize: 10, fontFamily: D.sans, fontWeight: 600,
-                    textTransform: 'uppercase' as const, letterSpacing: '0.8px',
-                    borderBottom: `1px solid ${D.border}`,
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {watchlist.map(sym => {
-                const d = getQuote(sym)
-                const isUp = (d?.change_percent ?? 0) >= 0
-                return (
-                  <tr key={sym} style={{ background: D.surface }}
-                    onMouseEnter={e => e.currentTarget.style.background = D.card}
-                    onMouseLeave={e => e.currentTarget.style.background = D.surface}>
-                    <td style={{ padding: '10px 12px', fontFamily: D.sans, fontSize: 14, fontWeight: 700, color: D.text, borderRadius: '6px 0 0 6px' }}>{sym}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: D.mono, fontSize: 14, color: D.text }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: D.mono, fontSize: 13, fontWeight: 600, color: isUp ? D.accent : D.red }}>
-                      {d?.change_percent != null ? `${isUp ? '+' : ''}${d.change_percent.toFixed(2)}%` : '—'}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                        <ConvictionBar score={d?.conviction ?? 0} />
-                        <span style={{ fontFamily: D.mono, fontSize: 14, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>{d?.conviction ?? '—'}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      <button onClick={() => setSelectedTicker(sym)} style={{
-                        background: 'none', border: `1px solid ${D.accent}40`, borderRadius: 5,
-                        color: D.accent, cursor: 'pointer', fontFamily: D.sans, fontSize: 11, fontWeight: 600,
-                        padding: '4px 10px',
-                      }}>Chart</button>
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', borderRadius: '0 6px 6px 0' }}>
-                      <button onClick={() => removeTicker(sym)} style={{
-                        background: 'none', border: 'none', color: D.muted, cursor: 'pointer',
-                        fontFamily: D.mono, fontSize: 16, padding: '2px 6px', transition: 'color 0.15s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = D.red}
-                      onMouseLeave={e => e.currentTarget.style.color = D.muted}>
-                        ×
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Watchlist cards — grid with mini charts */}
+        {watchlist.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(auto-fill, minmax(320px, 1fr))' : '1fr', gap: 12 }}>
             {watchlist.map(sym => {
               const d = getQuote(sym)
               const isUp = (d?.change_percent ?? 0) >= 0
+              const conviction = d?.conviction ?? 0
               return (
-                <div key={sym} style={{ background: D.surface, borderRadius: 10, padding: '14px 16px', border: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div onClick={() => setSelectedTicker(sym)} style={{ cursor: 'pointer', flex: 1 }}>
-                    <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 15 }}>{sym}</div>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
-                      <span style={{ fontFamily: D.mono, fontSize: 14, color: D.text }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</span>
-                      <span style={{ fontFamily: D.mono, fontSize: 12, fontWeight: 600, color: isUp ? D.accent : D.red }}>
-                        {d?.change_percent != null ? `${isUp ? '+' : ''}${d.change_percent.toFixed(2)}%` : '—'}
-                      </span>
+                <div key={sym} onClick={() => setSelectedTicker(sym)} style={{
+                  background: D.surface, borderRadius: 12, padding: 20, border: `1px solid ${D.border}`,
+                  cursor: 'pointer', transition: 'border-color 0.15s',
+                  borderLeft: `3px solid ${isUp ? D.accent : D.red}`,
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = isUp ? D.accent : D.red}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.borderLeftColor = isUp ? D.accent : D.red }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 18, color: D.text }}>{sym}</div>
+                      <div style={{ fontFamily: D.mono, fontSize: 20, fontWeight: 700, color: D.text, marginTop: 2 }}>${d?.price?.toFixed(2) ?? '—'}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: D.mono, fontSize: 14, color: isUp ? D.accent : D.red, fontWeight: 600 }}>
+                        {isUp ? '+' : ''}{(d?.change_percent ?? 0).toFixed(2)}%
+                      </div>
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        <ConvictionBar score={conviction} />
+                        <span style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 700, color: tierColor(conviction) }}>{conviction || '—'}</span>
+                      </div>
                     </div>
                   </div>
-                  <button onClick={() => removeTicker(sym)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}
+                  {sparklines[sym] && <Sparkline data={sparklines[sym]} color={isUp ? D.accent : D.red} width={280} height={50} />}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                    <SignalBadge score={conviction} />
+                    <button onClick={e => { e.stopPropagation(); removeTicker(sym) }} style={{
+                      background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 16, padding: '2px 6px',
+                    }}
                     onMouseEnter={e => e.currentTarget.style.color = D.red}
                     onMouseLeave={e => e.currentTarget.style.color = D.muted}>×</button>
+                  </div>
                 </div>
               )
             })}
           </div>
-        )}
-
-        {watchlist.length === 0 && (
+        ) : (
           <div style={{ textAlign: 'center', padding: 40, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>
             {user ? 'Search and add tickers above' : 'Sign in to build your watchlist'}
           </div>
@@ -1279,6 +1345,14 @@ export default function PWAApp() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
               <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
             </div>
+          </div>
+        )}
+
+        {/* Watchlist News */}
+        {watchlist.length > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: 13, fontFamily: D.sans, fontWeight: 700, color: D.text, marginBottom: 12 }}>Watchlist News</div>
+            <WatchlistNewsFeed symbols={watchlist} isPro={isPro} />
           </div>
         )}
       </>

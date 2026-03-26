@@ -90,8 +90,9 @@ export default function OptionsFlowPanel({ symbol, isPro }: { symbol: string; is
 
   if (!flow) {
     return (
-      <div style={{ background: '#111', borderRadius: 10, padding: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: mono, fontSize: 13, color: '#555' }}>Options data unavailable for {symbol}</div>
+      <div style={{ background: '#0B0E1A', borderRadius: 10, padding: 16, border: '1px solid #1A2038' }}>
+        <div style={{ fontSize: 13, color: '#4A5575', fontFamily: "'DM Sans', sans-serif" }}>Options chain data available during market hours</div>
+        <div style={{ fontSize: 11, color: '#4A5575', marginTop: 4 }}>Mon–Fri, 9:30am–4:00pm ET · Options Intelligence (RSI/MACD) available 24/7</div>
       </div>
     )
   }
