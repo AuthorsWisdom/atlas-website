@@ -180,7 +180,7 @@ export default function PWAApp() {
   // Fetch AI usage stats
   useEffect(() => {
     if (!user) return
-    fetch(`${BACKEND}/usage/ai`, { headers: { 'X-User-ID': user.id } })
+    fetch('/api/usage/ai', { headers: { 'X-User-ID': user.id } })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setAIUsage(d) })
       .catch(() => {})

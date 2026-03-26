@@ -57,7 +57,7 @@ export function useLivePrices(symbols: string[]) {
     const connect = () => {
       if (binanceWsRef.current) { binanceWsRef.current.close(); binanceWsRef.current = null }
 
-      const streams = cryptoSymbols.map(s => `${s.toLowerCase()}usdt@ticker`).join('/')
+      const streams = cryptoSymbols.map(s => `${s.toLowerCase()}usdt@aggTrade`).join('/')
       const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`)
       binanceWsRef.current = ws
 
@@ -67,9 +67,11 @@ export function useLivePrices(symbols: string[]) {
         try {
           const msg = JSON.parse(event.data)
           const d = msg.data
-          if (!d?.s) return
+          if (!d?.s || d.e !== 'aggTrade') return
           const sym = d.s.replace('USDT', '').toUpperCase()
-          updateQuote(sym, parseFloat(d.c), parseFloat(d.P))
+          // aggTrade uses "p" for price, no change% — use last known
+          const prev = prevPrices.current[sym]
+          updateQuote(sym, parseFloat(d.p), 0) // change% comes from REST poll
         } catch { /* ignore */ }
       }
 
