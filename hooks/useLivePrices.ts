@@ -29,13 +29,13 @@ export function useLivePrices(symbols: string[]) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const symbolsKey = symbols.join(',')
 
-  // Flash detection helper
   const detectFlashes = useCallback((updates: Record<string, LiveQuote>) => {
     const newFlashes: Record<string, 'up' | 'down' | null> = {}
     for (const [sym, q] of Object.entries(updates)) {
-      if (q.price == null) continue
+      if (q.price == null || q.price === 0) continue
       const prev = prevPrices.current[sym]
-      if (prev !== undefined && q.price !== prev) {
+      // Only flash if price actually changed by more than 0.001
+      if (prev !== undefined && Math.abs(q.price - prev) > 0.001) {
         newFlashes[sym] = q.price > prev ? 'up' : 'down'
       }
       prevPrices.current[sym] = q.price
@@ -56,14 +56,8 @@ export function useLivePrices(symbols: string[]) {
   useEffect(() => {
     if (symbols.length === 0) return
 
-    if (esRef.current) {
-      esRef.current.close()
-      esRef.current = null
-    }
-    if (reconnectTimer.current) {
-      clearTimeout(reconnectTimer.current)
-      reconnectTimer.current = null
-    }
+    if (esRef.current) { esRef.current.close(); esRef.current = null }
+    if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null }
 
     const es = new EventSource(`/api/stream?symbols=${symbolsKey}`)
     esRef.current = es
@@ -74,30 +68,23 @@ export function useLivePrices(symbols: string[]) {
       try {
         const data: StreamEvent = JSON.parse(event.data)
         if (data.error) return
-
         setStockMarketOpen(data.stock_market_open)
-
         if (data.quotes && Object.keys(data.quotes).length > 0) {
           detectFlashes(data.quotes)
-          // Create brand new object to guarantee React re-render
           setQuotes(prev => {
-            const next: Record<string, LiveQuote> = {}
-            for (const key of Object.keys(prev)) next[key] = prev[key]
-            for (const [key, val] of Object.entries(data.quotes)) next[key] = val
+            const next: Record<string, LiveQuote> = { ...prev }
+            for (const [key, val] of Object.entries(data.quotes)) next[key] = { ...val }
             return next
           })
         }
-      } catch { /* ignore parse errors */ }
+      } catch { /* ignore */ }
     }
 
     es.onerror = () => {
       setIsConnected(false)
       es.close()
       esRef.current = null
-      // Reconnect after 5 seconds
-      reconnectTimer.current = setTimeout(() => {
-        setReconnectCount(c => c + 1)
-      }, 5000)
+      reconnectTimer.current = setTimeout(() => setReconnectCount(c => c + 1), 5000)
     }
 
     return () => {
@@ -109,13 +96,16 @@ export function useLivePrices(symbols: string[]) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbolsKey, reconnectCount, detectFlashes])
 
-  // REST polling fallback — refreshes every 10s regardless of SSE
+  // REST polling fallback — every 10s, cache-busted
   useEffect(() => {
     if (symbols.length === 0) return
 
     const poll = async () => {
       const results = await Promise.allSettled(
-        symbols.map(s => fetch(`/api/quote/${s}`).then(r => r.ok ? r.json() : null))
+        symbols.map(s =>
+          fetch(`/api/quote/${s}?t=${Date.now()}`, { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null)
+        )
       )
       const updates: Record<string, LiveQuote> = {}
       results.forEach((r, i) => {
@@ -133,15 +123,14 @@ export function useLivePrices(symbols: string[]) {
       if (Object.keys(updates).length > 0) {
         detectFlashes(updates)
         setQuotes(prev => {
-          const next: Record<string, LiveQuote> = {}
-          for (const key of Object.keys(prev)) next[key] = prev[key]
-          for (const [key, val] of Object.entries(updates)) next[key] = val
+          const next: Record<string, LiveQuote> = { ...prev }
+          for (const [key, val] of Object.entries(updates)) next[key] = { ...val }
           return next
         })
       }
     }
 
-    poll() // immediate
+    poll()
     const interval = setInterval(poll, 10000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps

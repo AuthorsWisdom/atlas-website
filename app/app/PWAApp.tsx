@@ -219,6 +219,12 @@ export default function PWAApp() {
         return
       }
       if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
+      // Subscribe to live stream on Railway
+      fetch(`${BACKEND}/stream/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: s }),
+      }).catch(() => {})
       setWatchlist(prev => [...prev, s])
       setSearchInput('')
       fetchQuotes([s])
