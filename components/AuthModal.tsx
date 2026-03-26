@@ -49,60 +49,78 @@ export default function AuthModal({ open, onClose, onSuccess, defaultView = 'sig
   async function handleSignUp() {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) {
-      setError(error.message)
+    try {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) {
+        setError(signInError.message)
+        setLoading(false)
+        return
+      }
       setLoading(false)
-      return
-    }
-    // Auto sign in after sign up
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
-      setError(signInError.message)
+      handleSuccess()
+    } catch {
+      setError('Unable to create account. Please try again.')
       setLoading(false)
-      return
     }
-    setLoading(false)
-    handleSuccess()
   }
 
   async function handleSignIn() {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
       setLoading(false)
-      return
+      handleSuccess()
+    } catch {
+      setError('Unable to sign in. Please try again.')
+      setLoading(false)
     }
-    setLoading(false)
-    handleSuccess()
   }
 
   async function handleForgotPassword() {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://xatlas.io/reset-password',
-    })
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://xatlas.io/reset-password',
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
+      setResetSent(true)
+    } catch (err) {
+      setError('Unable to send reset email. Please try again.')
     }
-    setResetSent(true)
     setLoading(false)
   }
 
   async function handleApple() {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: 'https://xatlas.io/app' },
-    })
-    if (error) {
-      setError(error.message)
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: 'https://xatlas.io/app' },
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      }
+    } catch {
+      setError('Unable to sign in with Apple. Please try again.')
       setLoading(false)
     }
   }
