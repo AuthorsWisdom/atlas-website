@@ -17,6 +17,22 @@ const CRYPTO_SYMBOLS = new Set([
   'MATIC', 'BNB', 'LTC', 'SHIB', 'UNI', 'ATOM', 'APT', 'ARB', 'OP', 'NEAR', 'FIL',
 ])
 
+// ── Design System ──
+const D = {
+  bg: '#060810',
+  surface: '#0B0E1A',
+  card: '#0F1220',
+  border: '#1A2038',
+  accent: '#00C896',
+  accentBlue: '#4F8EF7',
+  accentAmber: '#F5A623',
+  red: '#E24B4A',
+  text: '#E8EDFF',
+  muted: '#4A5575',
+  mono: "'JetBrains Mono', monospace",
+  sans: "'DM Sans', sans-serif",
+}
+
 // ── Types ──
 interface QuoteData {
   symbol: string; price: number | null; change_percent: number | null
@@ -35,14 +51,7 @@ interface PortfolioData {
   risk_factors: string[]; regime_alignment: string; regime: string
   scores: Record<string, number>; total_symbols: number
 }
-type Tab = 'scanner' | 'macro' | 'watchlist' | 'settings'
-
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'scanner', label: 'Scanner', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-  { id: 'macro', label: 'Macro', icon: 'M3 20h18M6 16V10M10 16V6M14 16V12M18 16V8' },
-  { id: 'watchlist', label: 'Watchlist', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
-  { id: 'settings', label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z' },
-]
+type Tab = 'scanner' | 'macro' | 'watchlist' | 'news' | 'settings'
 
 const MACRO_INFO: Record<string, { title: string; desc: string; getStatus: (v: number) => string }> = {
   fed_rate: { title: 'Fed Funds Rate', desc: "The Federal Reserve's benchmark interest rate. Higher rates increase borrowing costs and typically pressure equity valuations.", getStatus: v => v > 5 ? 'Restrictive' : v > 3 ? 'Neutral' : 'Accommodative' },
@@ -53,20 +62,55 @@ const MACRO_INFO: Record<string, { title: string; desc: string; getStatus: (v: n
   credit_spread: { title: 'Credit Spread', desc: 'Difference between corporate and Treasury yields. Widening spreads signal rising credit risk and potential economic stress.', getStatus: v => v > 2 ? 'Stressed' : v > 1 ? 'Moderate' : 'Tight' },
 }
 
-const mono = "'JetBrains Mono', monospace"
-const GREEN = '#1D9E75'
-const RED = '#E24B4A'
+// ── Utilities ──
+function tierColor(c: number): string {
+  if (c >= 70) return D.accent
+  if (c >= 40) return D.accentAmber
+  return D.muted
+}
 
-function Sparkline({ data }: { data: number[] }) {
+function signalLabel(score: number): { text: string; color: string; bg: string } {
+  if (score >= 75) return { text: 'STRONG BUY', color: D.accent, bg: `${D.accent}18` }
+  if (score >= 60) return { text: 'BUY', color: D.accent, bg: `${D.accent}12` }
+  if (score >= 40) return { text: 'HOLD', color: D.accentAmber, bg: `${D.accentAmber}15` }
+  if (score >= 25) return { text: 'WEAK', color: D.muted, bg: `${D.muted}15` }
+  return { text: 'NO SIGNAL', color: D.muted, bg: `${D.muted}10` }
+}
+
+// ── Small Components ──
+const ConvictionBar = memo(({ score }: { score: number }) => (
+  <div style={{ width: 60, height: 4, background: D.border, borderRadius: 2, overflow: 'hidden' }}>
+    <div style={{
+      width: `${score}%`, height: '100%', borderRadius: 2,
+      background: score >= 70 ? D.accent : score >= 40 ? D.accentAmber : D.red,
+      transition: 'width 0.5s ease',
+    }} />
+  </div>
+))
+ConvictionBar.displayName = 'ConvictionBar'
+
+const SignalBadge = memo(({ score }: { score: number }) => {
+  const s = signalLabel(score)
+  return (
+    <span style={{
+      fontFamily: D.sans, fontSize: 10, fontWeight: 600, letterSpacing: '0.5px',
+      padding: '3px 8px', borderRadius: 4,
+      color: s.color, background: s.bg,
+    }}>{s.text}</span>
+  )
+})
+SignalBadge.displayName = 'SignalBadge'
+
+function Sparkline({ data, color, width = 80, height = 28 }: { data: number[]; color?: string; width?: number; height?: number }) {
   if (data.length < 2) return null
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
-  const color = data[data.length - 1] >= data[0] ? GREEN : RED
-  const points = data.map((v, i) => `${(i / (data.length - 1)) * 200},${55 - ((v - min) / range) * 50}`).join(' ')
+  const c = color ?? (data[data.length - 1] >= data[0] ? D.accent : D.red)
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - 2 - ((v - min) / range) * (height - 4)}`).join(' ')
   return (
-    <svg viewBox="0 0 200 60" style={{ width: '100%', height: 50, display: 'block' }} preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+      <polyline points={points} fill="none" stroke={c} strokeWidth="1.5" />
     </svg>
   )
 }
@@ -83,6 +127,163 @@ function useIsDesktop() {
   return d
 }
 
+// ── News Components ──
+interface NewsArticle {
+  id: string; title: string; summary: string; source: string
+  url: string; image: string; published_at: number; category: string
+  type?: string; symbols?: string[]
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  market: '#4F8EF7',
+  sec: '#F5A623',
+  regulation: '#E24B4A',
+  fed: '#00C896',
+}
+
+const NewsCard = memo(({ article, compact }: { article: NewsArticle; compact?: boolean }) => {
+  const color = CATEGORY_COLORS[article.category] ?? D.muted
+  return (
+    <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
+      <div style={{
+        background: D.surface, borderRadius: 10, padding: compact ? 16 : 20,
+        border: `1px solid ${D.border}`, cursor: 'pointer',
+        transition: 'border-color 0.15s, transform 0.15s',
+        borderLeft: `3px solid ${color}`,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = 'translateY(-1px)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.borderLeftColor = color; e.currentTarget.style.transform = 'translateY(0)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 8 }}>
+          <span style={{
+            fontSize: 10, fontFamily: D.sans, fontWeight: 700,
+            color, textTransform: 'uppercase' as const, letterSpacing: '0.8px',
+            background: `${color}15`, padding: '3px 8px', borderRadius: 4, flexShrink: 0,
+          }}>{article.source}</span>
+          <span style={{ fontSize: 11, color: D.muted, fontFamily: D.mono, flexShrink: 0 }}>
+            {new Date(article.published_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+        <div style={{
+          fontFamily: D.sans, fontWeight: 600, fontSize: compact ? 13 : 14,
+          color: D.text, lineHeight: 1.5, marginBottom: article.summary ? 8 : 0,
+        }}>{article.title}</div>
+        {article.summary && !compact && (
+          <div style={{
+            fontSize: 12, color: D.muted, lineHeight: 1.6,
+            display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
+          }}>{article.summary}</div>
+        )}
+        <div style={{ marginTop: compact ? 8 : 12, fontSize: 11, color, fontFamily: D.sans, fontWeight: 600 }}>
+          Read more →
+        </div>
+      </div>
+    </a>
+  )
+})
+NewsCard.displayName = 'NewsCard'
+
+const NewsCardSkeleton = () => (
+  <div style={{ background: D.surface, borderRadius: 10, padding: 20, border: `1px solid ${D.border}` }}>
+    {[80, 100, 60].map((w, i) => (
+      <div key={i} style={{ height: 12, background: D.border, borderRadius: 4, width: `${w}%`, marginBottom: 10 }} />
+    ))}
+  </div>
+)
+
+function NewsTab() {
+  const [news, setNews] = useState<NewsArticle[]>([])
+  const [activeFilter, setActiveFilter] = useState<'all' | 'market' | 'sec' | 'regulation' | 'fed'>('all')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/news?type=all&limit=50')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setNews(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const filtered = activeFilter === 'all' ? news : news.filter(n => n.category === activeFilter)
+
+  return (
+    <>
+      <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18, marginBottom: 20 }}>News & Regulations</div>
+
+      {/* Filter pills */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        {([
+          { id: 'all' as const, label: 'All News' },
+          { id: 'market' as const, label: 'Markets' },
+          { id: 'sec' as const, label: 'SEC Filings' },
+          { id: 'regulation' as const, label: 'Regulations' },
+          { id: 'fed' as const, label: 'Federal Reserve' },
+        ]).map(f => (
+          <button key={f.id} onClick={() => setActiveFilter(f.id)}
+            style={{
+              padding: '6px 14px',
+              background: activeFilter === f.id ? D.accent : D.surface,
+              color: activeFilter === f.id ? '#000' : D.muted,
+              border: `1px solid ${activeFilter === f.id ? D.accent : D.border}`,
+              borderRadius: 20, fontSize: 12, cursor: 'pointer',
+              fontFamily: D.sans, fontWeight: 600, transition: 'all 0.15s',
+            }}>
+            {f.label}
+          </button>
+        ))}
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: D.muted, fontFamily: D.sans }}>
+          {filtered.length} articles
+        </span>
+      </div>
+
+      {/* Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+        {loading ? (
+          Array(6).fill(0).map((_, i) => <NewsCardSkeleton key={i} />)
+        ) : filtered.length > 0 ? (
+          filtered.map((article, i) => <NewsCard key={article.id || i} article={article} />)
+        ) : (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>
+            No articles found for this filter.
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function TickerNews({ symbol }: { symbol: string }) {
+  const [news, setNews] = useState<NewsArticle[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/news?type=market&symbol=${symbol}&limit=5`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setNews(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [symbol])
+
+  if (loading) return null
+  if (news.length === 0) return null
+
+  return (
+    <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
+      <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>
+        Latest {symbol} News
+      </div>
+      {news.map((article, i) => (
+        <a key={article.id || i} href={article.url} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'block', padding: '10px 0', borderBottom: i < news.length - 1 ? `1px solid ${D.border}` : 'none', textDecoration: 'none' }}>
+          <div style={{ fontSize: 13, color: D.text, fontFamily: D.sans, fontWeight: 500, lineHeight: 1.4, marginBottom: 4 }}>{article.title}</div>
+          <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans }}>
+            {article.source} · {new Date(article.published_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </div>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+// ── Main App ──
 export default function PWAApp() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
@@ -98,17 +299,18 @@ export default function PWAApp() {
   const [sugIdx, setSugIdx] = useState(-1)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [expandedMacro, setExpandedMacro] = useState<string | null>(null)
-  const [expandedAI, setExpandedAI] = useState<string | null>(null)
   const [aiData, setAIData] = useState<Record<string, { loading: boolean; text: string; factors: string[] }>>({})
-  const [detailTicker, setDetailTicker] = useState<string | null>(null)
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<{ loading: boolean; data: PortfolioData | null }>({ loading: false, data: null })
   const [showPortfolio, setShowPortfolio] = useState(false)
   const [aiUsage, setAIUsage] = useState<{ daily_used: number; monthly_used: number; daily_limit: number; monthly_limit: number } | null>(null)
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({})
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
+  const isMobile = !isDesktop
   const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
 
   const isPro = profile?.is_pro ?? false
@@ -131,11 +333,9 @@ export default function PWAApp() {
       .then(({ data }) => { if (data) setWatchlist(data.map((r: { symbol: string }) => r.symbol)) }, () => {})
   }, [user])
 
-  // Initial fetch + macro
   useEffect(() => {
     if (watchlist.length) fetchQuotes(watchlist)
     fetch('/api/demo/macro').then(r => r.ok ? r.json() : null).then(d => { if (d) setMacro(d) }).catch(() => {})
-    // Fetch sparkline data for all symbols
     const syms = [...new Set([...watchlist])]
     syms.forEach(s => {
       if (sparklines[s]) return
@@ -146,7 +346,7 @@ export default function PWAApp() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchQuotes, watchlist])
 
-  // Live price polling — writes directly to quotes state every 5s
+  // Live price polling
   useEffect(() => {
     if (watchlist.length === 0) return
     const poll = async () => {
@@ -177,7 +377,6 @@ export default function PWAApp() {
     if (p.get('subscribed') === 'true' && !user) setShowAuth(true)
   }, [user])
 
-  // Fetch AI usage stats
   useEffect(() => {
     if (!user) return
     fetch('/api/usage/ai', { headers: { 'X-User-ID': user.id } })
@@ -185,6 +384,14 @@ export default function PWAApp() {
       .then(d => { if (d) setAIUsage(d) })
       .catch(() => {})
   }, [user])
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return
+    const handler = () => setShowUserMenu(false)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [showUserMenu])
 
   // ── Search autocomplete ──
   const handleSearchInput = useCallback((val: string) => {
@@ -207,7 +414,6 @@ export default function PWAApp() {
     setSearchInput(sym)
     setShowSuggestions(false)
     setSuggestions([])
-    // Auto-submit
     addTickerDirect(sym)
   }
 
@@ -247,7 +453,6 @@ export default function PWAApp() {
         return
       }
       if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
-      // Subscribe to live stream on Railway
       fetch(`${BACKEND}/stream/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -302,12 +507,6 @@ export default function PWAApp() {
     }
   }
 
-  function toggleAI(sym: string) {
-    if (expandedAI === sym) { setExpandedAI(null); return }
-    setExpandedAI(sym)
-    if (!aiData[sym]) fetchAI(sym)
-  }
-
   async function handleManageSubscription() {
     if (!profile?.stripe_customer_id) return
     try {
@@ -317,21 +516,7 @@ export default function PWAApp() {
     } catch (err) { console.error('Portal error:', err) }
   }
 
-  // ── Styles ──
-  const card: React.CSSProperties = {
-    background: '#111', borderRadius: 10, padding: '12px 14px',
-    border: '1px solid rgba(255,255,255,0.06)', marginBottom: 8,
-    transition: 'border-color 0.15s',
-  }
-  const hoverProps = isDesktop ? {
-    onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)' },
-    onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' },
-  } : {}
-  const pad = isDesktop ? '24px 32px' : '16px 14px'
-
-  // ── Ticker card (shared between scanner & watchlist mobile) ──
-  // quotes state is polled every 5s with fresh data — this is the primary source
-  // liveQuotes from SSE hook is a bonus overlay for even faster updates
+  // ── Quote helper ──
   function getQuote(sym: string): QuoteData | undefined {
     const fetched = quotes[sym]
     if (!fetched) return undefined
@@ -342,118 +527,11 @@ export default function PWAApp() {
     return fetched
   }
 
-  function TickerCard({ sym, showRemove }: { sym: string; showRemove?: boolean }) {
-    const d = getQuote(sym)
-    const flash = flashes[sym]
-    const aiExpanded = expandedAI === sym
-    const ai = aiData[sym]
+  // ── Search Input Component ──
+  function SearchInput({ inline }: { inline?: boolean }) {
     return (
-      <div style={card} {...hoverProps}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-          onClick={() => setDetailTicker(detailTicker === sym ? null : sym)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: mono, fontSize: 28, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>{d?.conviction ?? '—'}</span>
-            <span style={{ fontFamily: mono, fontSize: 18, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.06em' }}>{sym}</span>
-            {CRYPTO_SYMBOLS.has(sym) && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>CRYPTO</span>}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{
-                fontFamily: mono, fontSize: 20, fontWeight: 600,
-                color: '#f0ede6',
-                transition: 'color 0.3s',
-              }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</div>
-              {d?.change_percent != null && (
-                <div style={{ fontFamily: mono, fontSize: 15, color: d.change_percent >= 0 ? '#4ade80' : '#f87171' }}>
-                  {d.change_percent >= 0 ? '+' : ''}{d.change_percent.toFixed(2)}%
-                </div>
-              )}
-            </div>
-            {showRemove && (
-              <button onClick={e => { e.stopPropagation(); removeTicker(sym) }} style={{
-                background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontFamily: mono, fontSize: 16, padding: '4px',
-              }}>x</button>
-            )}
-          </div>
-        </div>
-
-        {/* Sparkline */}
-        {sparklines[sym] && <div style={{ marginTop: 6 }}><Sparkline data={sparklines[sym]} /></div>}
-
-        {/* Pro breakdown bars / free blur */}
-        {isPro && d && (
-          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-            {[{ l: 'SQZ', v: d.squeeze_score }, { l: 'FLOW', v: d.options_flow_score }, { l: 'MACRO', v: d.macro_score }].map(b => (
-              <div key={b.l} style={{ flex: 1 }}>
-                <div style={{ fontFamily: mono, fontSize: 8, color: '#555', marginBottom: 3 }}>{b.l}</div>
-                <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                  <div style={{ width: `${(b.v ?? 50)}%`, height: '100%', borderRadius: 2, background: tierColor(b.v ?? 50) }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {!isPro && (
-          <div style={{ marginTop: 8, position: 'relative' }}>
-            <div style={{ filter: 'blur(4px)', opacity: 0.4 }}>
-              {['SQZ', 'FLOW', 'MACRO'].map(l => (<div key={l} style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.06)', marginBottom: 6 }} />))}
-            </div>
-            <a href="/#pricing" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 9, color: '#4ade80', textDecoration: 'none' }}>Upgrade to Pro</a>
-          </div>
-        )}
-
-        {/* AI Analysis toggle */}
-        <button onClick={e => { e.stopPropagation(); toggleAI(sym) }} style={{
-          display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '4px 0',
-          background: 'none', border: 'none', cursor: 'pointer',
-          fontFamily: mono, fontSize: 9, color: aiExpanded ? '#4ade80' : '#555',
-        }}>
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: aiExpanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
-            <path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          AI Analysis
-        </button>
-
-        {aiExpanded && (
-          <div style={{ marginTop: 4, padding: '8px 0' }}>
-            {!isPro ? (
-              <div style={{ position: 'relative' }}>
-                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', filter: 'blur(4px)', lineHeight: 1.6 }}>
-                  Based on current squeeze conditions and macro regime, this ticker shows moderate conviction...
-                </p>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <a href="/#pricing" style={{ fontFamily: mono, fontSize: 10, color: '#4ade80', textDecoration: 'none', background: 'rgba(74,222,128,0.1)', padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(74,222,128,0.2)' }}>
-                    Upgrade to Pro
-                  </a>
-                </div>
-              </div>
-            ) : ai?.loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {[1, 2].map(i => (<div key={i} style={{ height: 12, borderRadius: 3, background: 'rgba(255,255,255,0.04)', width: i === 1 ? '100%' : '70%' }} />))}
-              </div>
-            ) : ai ? (
-              <>
-                <p style={{ fontFamily: mono, fontSize: 11, color: '#aaa', lineHeight: 1.6, marginBottom: 6 }}>{ai.text}</p>
-                {ai.factors.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {ai.factors.map(f => (
-                      <span key={f} style={{ fontFamily: mono, fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.15)' }}>{f}</span>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : null}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ── Search input with autocomplete ──
-  function SearchInput() {
-    return (
-      <div ref={searchRef} style={{ position: 'relative', marginBottom: 14 }}>
-        <div style={{ display: 'flex', gap: 6 }}>
+      <div ref={searchRef} style={{ position: 'relative', ...(inline ? {} : { marginBottom: 14 }) }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <input
             ref={searchInputRef}
             type="text" value={searchInput}
@@ -463,29 +541,31 @@ export default function PWAApp() {
             placeholder="Search ticker or company..."
             disabled={searchLoading}
             style={{
-              flex: 1, padding: '9px 12px', borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.1)', background: '#0a0a0a',
-              color: '#f0ede6', fontFamily: mono, fontSize: 12, outline: 'none',
+              flex: 1, padding: '8px 14px', borderRadius: 6,
+              border: `1px solid ${D.border}`, background: D.surface,
+              color: D.text, fontFamily: D.sans, fontSize: 13, outline: 'none',
+              transition: 'border-color 0.15s',
             }}
+            onFocusCapture={e => e.currentTarget.style.borderColor = D.accent + '60'}
+            onBlurCapture={e => e.currentTarget.style.borderColor = D.border}
           />
           <button onClick={addTicker} disabled={searchLoading || !searchInput.trim()} style={{
-            padding: '9px 16px', borderRadius: 8, border: 'none',
-            background: '#4ade80', color: '#052e16', fontFamily: mono,
-            fontSize: 11, fontWeight: 700, cursor: searchLoading ? 'wait' : 'pointer',
-            opacity: searchLoading || !searchInput.trim() ? 0.5 : 1, whiteSpace: 'nowrap',
+            padding: '8px 18px', borderRadius: 6, border: 'none',
+            background: D.accent, color: '#000', fontFamily: D.sans,
+            fontSize: 13, fontWeight: 700, cursor: searchLoading ? 'wait' : 'pointer',
+            opacity: searchLoading || !searchInput.trim() ? 0.4 : 1, whiteSpace: 'nowrap',
           }}>
             {searchLoading ? '...' : 'Add'}
           </button>
         </div>
         {searchError && (
-          <p style={{ fontFamily: mono, fontSize: 10, color: searchError.includes('limited') ? '#fbbf24' : '#f87171', marginTop: 6 }}>{searchError}</p>
+          <p style={{ fontFamily: D.sans, fontSize: 11, color: searchError.includes('limited') ? D.accentAmber : D.red, marginTop: 6 }}>{searchError}</p>
         )}
-        {/* Autocomplete dropdown */}
         {showSuggestions && suggestions.length > 0 && (
           <div style={{
             position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-            background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
-            overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
+            overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
           }}>
             {suggestions.map((s, i) => (
               <button key={s.symbol}
@@ -493,16 +573,16 @@ export default function PWAApp() {
                 onMouseEnter={() => setSugIdx(i)}
                 style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  width: '100%', padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                  background: i === sugIdx ? 'rgba(255,255,255,0.05)' : 'transparent',
+                  width: '100%', padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                  background: i === sugIdx ? `${D.accent}10` : 'transparent',
                   transition: 'background 0.1s',
                 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 600, color: '#f0ede6' }}>{s.symbol}</span>
-                  {s.type === 'ETF' && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 4px', borderRadius: 2, background: 'rgba(168,85,247,0.15)', color: '#a855f7' }}>ETF</span>}
-                  {s.type === 'CRYPTO' && <span style={{ fontFamily: mono, fontSize: 8, padding: '1px 4px', borderRadius: 2, background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>CRYPTO</span>}
+                  <span style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 600, color: D.text }}>{s.symbol}</span>
+                  {s.type === 'ETF' && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentBlue}15`, color: D.accentBlue, fontWeight: 600 }}>ETF</span>}
+                  {s.type === 'CRYPTO' && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentAmber}15`, color: D.accentAmber, fontWeight: 600 }}>CRYPTO</span>}
                 </div>
-                <span style={{ fontFamily: mono, fontSize: 10, color: '#555', maxWidth: '50%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                <span style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, maxWidth: '50%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
               </button>
             ))}
           </div>
@@ -511,592 +591,914 @@ export default function PWAApp() {
     )
   }
 
-  // ── Ticker detail view ──
-  function renderDetail(sym: string) {
+  // ── Portfolio Analysis ──
+  async function runPortfolioAnalysis() {
+    if (portfolioAnalysis.loading) return
+    setShowPortfolio(true)
+    setPortfolioAnalysis({ loading: true, data: null })
+    try {
+      const res = await fetch(`${BACKEND}/portfolio/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user?.id ?? '',
+          'X-Is-Pro': isPro ? 'true' : 'false',
+          'X-Has-BYOK': 'false',
+        },
+        body: JSON.stringify({ symbols: watchlist, regime: macro?.regime ?? 'unknown' }),
+      })
+      const data = await res.json()
+      setPortfolioAnalysis({ loading: false, data })
+    } catch {
+      setPortfolioAnalysis({ loading: false, data: null })
+    }
+  }
+
+  // ════════════════════════════════════════
+  // ── RENDER ──
+  // ════════════════════════════════════════
+
+  // ── SCANNER TAB ──
+  function renderScanner() {
+    const symbols = watchlist.length ? watchlist : []
+
+    if (!user && !authLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+          <div style={{ fontFamily: D.sans, fontSize: 24, fontWeight: 700, color: D.text, marginBottom: 8 }}>Market Scanner</div>
+          <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 24 }}>Sign in to access conviction scores, macro data, and your watchlist.</p>
+          <button onClick={() => setShowAuth(true)} style={{ padding: '10px 32px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Sign In</button>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18 }}>Market Scanner</span>
+            <span style={{ marginLeft: 12, fontSize: 12, color: D.muted, fontFamily: D.sans, fontWeight: 400 }}>
+              {symbols.length} symbols{lastUpdated && <> &middot; Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+            </span>
+          </div>
+          <button onClick={() => setTab('watchlist')} style={{
+            padding: '6px 16px', borderRadius: 6, border: `1px solid ${D.border}`,
+            background: 'transparent', color: D.muted, fontFamily: D.sans, fontSize: 12,
+            fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = D.accent; e.currentTarget.style.color = D.accent }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.muted }}>
+            + Add Ticker
+          </button>
+        </div>
+
+        {symbols.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 16 }}>No tickers in your watchlist</p>
+            <button onClick={() => setTab('watchlist')} style={{
+              padding: '10px 24px', borderRadius: 6, border: `1px solid ${D.accent}40`,
+              background: `${D.accent}10`, color: D.accent, fontFamily: D.sans,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>Add tickers to get started</button>
+          </div>
+        ) : isDesktop ? (
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 2px' }}>
+            <thead>
+              <tr>
+                {['SYMBOL', 'PRICE', 'CHG%', '7D TREND', 'CONVICTION', 'SIGNAL', 'OPTIONS RSI', 'ACTION'].map(h => (
+                  <th key={h} style={{
+                    textAlign: h === 'SYMBOL' ? 'left' : 'right',
+                    padding: '8px 12px', color: D.muted,
+                    fontSize: 10, fontFamily: D.sans, fontWeight: 600,
+                    textTransform: 'uppercase' as const, letterSpacing: '0.8px',
+                    borderBottom: `1px solid ${D.border}`,
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {symbols.map(symbol => {
+                const quote = getQuote(symbol)
+                const isUp = (quote?.change_percent ?? 0) >= 0
+                const conviction = quote?.conviction ?? 0
+                return (
+                  <tr key={symbol}
+                    onClick={() => setSelectedTicker(symbol)}
+                    style={{ cursor: 'pointer', background: D.surface }}
+                    onMouseEnter={e => e.currentTarget.style.background = D.card}
+                    onMouseLeave={e => e.currentTarget.style.background = D.surface}>
+                    <td style={{ padding: '12px', borderRadius: '6px 0 0 6px', borderLeft: `2px solid ${isUp ? D.accent : D.red}` }}>
+                      <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 14 }}>{symbol}</div>
+                      {CRYPTO_SYMBOLS.has(symbol) && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentAmber}15`, color: D.accentAmber, fontWeight: 600 }}>CRYPTO</span>}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontFamily: D.mono, fontWeight: 600, color: D.text, fontSize: 15 }}>
+                      ${quote?.price?.toFixed(2) ?? '—'}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontFamily: D.mono, fontSize: 13, fontWeight: 600, color: isUp ? D.accent : D.red }}>
+                      {isUp ? '+' : ''}{(quote?.change_percent ?? 0).toFixed(2)}%
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <Sparkline data={sparklines[symbol] ?? []} color={isUp ? D.accent : D.red} width={80} height={28} />
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                        <ConvictionBar score={conviction} />
+                        <span style={{ fontFamily: D.mono, fontSize: 14, fontWeight: 700, color: tierColor(conviction) }}>
+                          {conviction || '—'}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <SignalBadge score={conviction} />
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontFamily: D.mono, fontSize: 13,
+                      color: (quote?.options_flow_score ?? 50) < 30 ? D.accent : (quote?.options_flow_score ?? 50) > 70 ? D.red : D.muted }}>
+                      {quote?.options_flow_score?.toFixed(1) ?? '—'}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right', borderRadius: '0 6px 6px 0' }}>
+                      <button onClick={e => { e.stopPropagation(); setSelectedTicker(symbol) }}
+                        style={{
+                          padding: '5px 12px', background: 'transparent', border: `1px solid ${D.border}`,
+                          borderRadius: 5, color: D.muted, fontSize: 11, cursor: 'pointer',
+                          fontFamily: D.sans, fontWeight: 600, letterSpacing: '0.5px',
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = D.accent; e.currentTarget.style.color = D.accent }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.muted }}>
+                        ANALYZE
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : (
+          /* Mobile scanner cards */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {symbols.map(symbol => {
+              const quote = getQuote(symbol)
+              const isUp = (quote?.change_percent ?? 0) >= 0
+              const conviction = quote?.conviction ?? 0
+              return (
+                <div key={symbol} onClick={() => setSelectedTicker(symbol)} style={{
+                  background: D.surface, borderRadius: 10, padding: '14px 16px',
+                  border: `1px solid ${D.border}`, cursor: 'pointer',
+                  borderLeft: `3px solid ${isUp ? D.accent : D.red}`,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 15 }}>{symbol}</span>
+                      {CRYPTO_SYMBOLS.has(symbol) && <span style={{ marginLeft: 6, fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentAmber}15`, color: D.accentAmber, fontWeight: 600 }}>CRYPTO</span>}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: D.mono, fontSize: 16, fontWeight: 600, color: D.text }}>${quote?.price?.toFixed(2) ?? '—'}</div>
+                      <div style={{ fontFamily: D.mono, fontSize: 12, fontWeight: 600, color: isUp ? D.accent : D.red }}>
+                        {isUp ? '+' : ''}{(quote?.change_percent ?? 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ConvictionBar score={conviction} />
+                      <span style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 700, color: tierColor(conviction) }}>{conviction || '—'}</span>
+                    </div>
+                    <SignalBadge score={conviction} />
+                  </div>
+                  {sparklines[symbol] && <div style={{ marginTop: 8 }}><Sparkline data={sparklines[symbol]} color={isUp ? D.accent : D.red} width={200} height={24} /></div>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── MACRO TAB ──
+  function renderMacro() {
+    const indicators = macro ? [
+      { key: 'fed_rate', value: macro.fed_rate, fmt: `${macro.fed_rate.toFixed(2)}%` },
+      { key: 'vix', value: macro.vix, fmt: macro.vix.toFixed(1) },
+      { key: 'yield_10y', value: macro.yield_10y, fmt: `${macro.yield_10y.toFixed(2)}%` },
+      { key: 'dxy', value: macro.dxy, fmt: macro.dxy.toFixed(2) },
+      { key: 'unemployment', value: macro.unemployment, fmt: `${macro.unemployment.toFixed(1)}%` },
+      { key: 'credit_spread', value: macro.credit_spread, fmt: `${macro.credit_spread.toFixed(2)}%` },
+    ] : []
+
+    return (
+      <>
+        <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18, marginBottom: 20 }}>Macro Dashboard</div>
+
+        {macro ? (
+          <>
+            {/* Regime banner */}
+            <div style={{
+              background: macro.regime === 'Risk-On' ? `${D.accent}0C` : `${D.red}0C`,
+              border: `1px solid ${macro.regime === 'Risk-On' ? D.accent + '30' : D.red + '30'}`,
+              borderRadius: 10, padding: '20px 24px', marginBottom: 20,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 4 }}>Market Regime</div>
+                <div style={{
+                  fontFamily: D.sans, fontSize: 22, fontWeight: 800,
+                  color: macro.regime === 'Risk-On' ? D.accent : D.red,
+                }}>{macro.regime.toUpperCase()}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: D.mono, fontSize: 36, fontWeight: 700, color: tierColor(macro.risk_on_score), lineHeight: 1 }}>{macro.risk_on_score}</div>
+                <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, marginTop: 2 }}>RISK SCORE</div>
+              </div>
+            </div>
+
+            {/* 4-column (desktop) / 2-column (mobile) indicator grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: 12 }}>
+              {indicators.map(ind => {
+                const info = MACRO_INFO[ind.key]
+                const expanded = expandedMacro === ind.key
+                const status = info.getStatus(ind.value)
+                const statusColor = status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') || status.includes('Restrictive')
+                  ? D.red
+                  : status.includes('Moderate') || status.includes('Neutral')
+                    ? D.accentAmber
+                    : D.accent
+                return (
+                  <div key={ind.key}
+                    onClick={() => setExpandedMacro(expanded ? null : ind.key)}
+                    style={{
+                      background: D.surface, borderRadius: 8, padding: '16px 20px',
+                      border: `1px solid ${D.border}`, cursor: 'pointer',
+                      transition: 'border-color 0.15s',
+                      ...(expanded && !isDesktop ? { gridColumn: 'span 2' } : {}),
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = D.border + 'cc'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = D.border}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', fontWeight: 600 }}>
+                        {info.title}
+                      </div>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
+                    </div>
+                    <div style={{ fontFamily: D.mono, fontSize: 26, fontWeight: 700, color: D.text, margin: '6px 0 4px' }}>
+                      {ind.fmt}
+                    </div>
+                    <div style={{ fontSize: 11, fontFamily: D.sans, color: statusColor, fontWeight: 500 }}>
+                      {status}
+                    </div>
+                    {expanded && (
+                      <div style={{ marginTop: 12, borderTop: `1px solid ${D.border}`, paddingTop: 12 }}>
+                        <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, lineHeight: 1.6 }}>{info.desc}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 60, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>Loading macro data...</div>
+        )}
+      </>
+    )
+  }
+
+  // ── WATCHLIST TAB ──
+  function renderWatchlist() {
+    if (!user && !authLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+          <div style={{ fontFamily: D.sans, fontSize: 24, fontWeight: 700, color: D.text, marginBottom: 8 }}>Watchlist</div>
+          <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 24 }}>Sign in to build your watchlist.</p>
+          <button onClick={() => setShowAuth(true)} style={{ padding: '10px 32px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Sign In</button>
+        </div>
+      )
+    }
+
+    const atLimit = !isPro && watchlist.length >= FREE_WATCHLIST_LIMIT
+
+    return (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18 }}>Watchlist</span>
+            <span style={{ marginLeft: 12, fontFamily: D.sans, fontSize: 12, color: D.muted }}>
+              {watchlist.length}{isPro ? ' symbols' : ` / ${FREE_WATCHLIST_LIMIT}`}
+              {isPro && <span style={{ marginLeft: 8, fontFamily: D.sans, fontSize: 10, padding: '2px 6px', borderRadius: 3, background: `${D.accent}15`, color: D.accent, fontWeight: 600 }}>PRO</span>}
+            </span>
+          </div>
+          {watchlist.length >= 2 && isPro && (
+            <button onClick={runPortfolioAnalysis} disabled={portfolioAnalysis.loading} style={{
+              padding: '6px 16px', borderRadius: 6, border: `1px solid ${D.accent}40`,
+              background: `${D.accent}10`, color: D.accent, fontFamily: D.sans,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              opacity: portfolioAnalysis.loading ? 0.6 : 1,
+            }}>
+              {portfolioAnalysis.loading ? 'Analyzing...' : 'AI Portfolio Analysis'}
+            </button>
+          )}
+        </div>
+
+        {user && <SearchInput />}
+
+        {/* Portfolio analysis result */}
+        {showPortfolio && portfolioAnalysis.data && (
+          <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: 20, marginBottom: 16 }}>
+            <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Portfolio Analysis</div>
+            {portfolioAnalysis.data.top_pick && (
+              <div style={{ marginBottom: 12, padding: '12px 16px', background: `${D.accent}0A`, borderRadius: 8, border: `1px solid ${D.accent}25` }}>
+                <div style={{ fontFamily: D.sans, fontSize: 10, color: D.accent, marginBottom: 4, fontWeight: 600 }}>TOP PICK</div>
+                <div style={{ fontFamily: D.sans, fontSize: 16, fontWeight: 700, color: D.text }}>
+                  {portfolioAnalysis.data.top_pick.symbol}
+                  <span style={{ fontSize: 13, color: D.accent, marginLeft: 10 }}>{portfolioAnalysis.data.top_pick.conviction}/100</span>
+                </div>
+                <div style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, marginTop: 4 }}>{portfolioAnalysis.data.top_pick.reasoning}</div>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>Regime alignment</span>
+              <span style={{ fontFamily: D.sans, fontSize: 12, fontWeight: 600, color:
+                portfolioAnalysis.data.regime_alignment === 'aligned' ? D.accent :
+                portfolioAnalysis.data.regime_alignment === 'misaligned' ? D.red : D.accentAmber }}>
+                {portfolioAnalysis.data.regime_alignment.toUpperCase()}
+              </span>
+            </div>
+            {portfolioAnalysis.data.risk_factors.length > 0 && (
+              <div>
+                <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, marginBottom: 6, fontWeight: 600 }}>RISK FACTORS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {portfolioAnalysis.data.risk_factors.map((f, i) => (
+                    <span key={i} style={{ fontFamily: D.sans, fontSize: 11, padding: '4px 8px', borderRadius: 4, background: `${D.red}12`, color: D.red }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isDesktop && watchlist.length > 0 ? (
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 2px' }}>
+            <thead>
+              <tr>
+                {['SYMBOL', 'PRICE', 'CHANGE', 'CONVICTION', '', ''].map((h, i) => (
+                  <th key={i} style={{
+                    textAlign: i === 0 ? 'left' : 'right',
+                    padding: '8px 12px', color: D.muted,
+                    fontSize: 10, fontFamily: D.sans, fontWeight: 600,
+                    textTransform: 'uppercase' as const, letterSpacing: '0.8px',
+                    borderBottom: `1px solid ${D.border}`,
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {watchlist.map(sym => {
+                const d = getQuote(sym)
+                const isUp = (d?.change_percent ?? 0) >= 0
+                return (
+                  <tr key={sym} style={{ background: D.surface }}
+                    onMouseEnter={e => e.currentTarget.style.background = D.card}
+                    onMouseLeave={e => e.currentTarget.style.background = D.surface}>
+                    <td style={{ padding: '10px 12px', fontFamily: D.sans, fontSize: 14, fontWeight: 700, color: D.text, borderRadius: '6px 0 0 6px' }}>{sym}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: D.mono, fontSize: 14, color: D.text }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: D.mono, fontSize: 13, fontWeight: 600, color: isUp ? D.accent : D.red }}>
+                      {d?.change_percent != null ? `${isUp ? '+' : ''}${d.change_percent.toFixed(2)}%` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                        <ConvictionBar score={d?.conviction ?? 0} />
+                        <span style={{ fontFamily: D.mono, fontSize: 14, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>{d?.conviction ?? '—'}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <button onClick={() => setSelectedTicker(sym)} style={{
+                        background: 'none', border: `1px solid ${D.accent}40`, borderRadius: 5,
+                        color: D.accent, cursor: 'pointer', fontFamily: D.sans, fontSize: 11, fontWeight: 600,
+                        padding: '4px 10px',
+                      }}>Chart</button>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', borderRadius: '0 6px 6px 0' }}>
+                      <button onClick={() => removeTicker(sym)} style={{
+                        background: 'none', border: 'none', color: D.muted, cursor: 'pointer',
+                        fontFamily: D.mono, fontSize: 16, padding: '2px 6px', transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = D.red}
+                      onMouseLeave={e => e.currentTarget.style.color = D.muted}>
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {watchlist.map(sym => {
+              const d = getQuote(sym)
+              const isUp = (d?.change_percent ?? 0) >= 0
+              return (
+                <div key={sym} style={{ background: D.surface, borderRadius: 10, padding: '14px 16px', border: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div onClick={() => setSelectedTicker(sym)} style={{ cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 15 }}>{sym}</div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
+                      <span style={{ fontFamily: D.mono, fontSize: 14, color: D.text }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</span>
+                      <span style={{ fontFamily: D.mono, fontSize: 12, fontWeight: 600, color: isUp ? D.accent : D.red }}>
+                        {d?.change_percent != null ? `${isUp ? '+' : ''}${d.change_percent.toFixed(2)}%` : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  <button onClick={() => removeTicker(sym)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}
+                    onMouseEnter={e => e.currentTarget.style.color = D.red}
+                    onMouseLeave={e => e.currentTarget.style.color = D.muted}>×</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {watchlist.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>
+            {user ? 'Search and add tickers above' : 'Sign in to build your watchlist'}
+          </div>
+        )}
+
+        {atLimit && (
+          <a href="/#pricing" style={{
+            display: 'block', textAlign: 'center', padding: 12, borderRadius: 8, marginTop: 12,
+            background: `${D.accent}08`, border: `1px solid ${D.accent}20`,
+            color: D.accent, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+          }}>Upgrade to Pro for unlimited watchlist</a>
+        )}
+
+        {watchlist.length >= 2 && !isPro && (
+          <div style={{ position: 'relative', marginTop: 16 }}>
+            <button disabled style={{
+              width: '100%', padding: 12, borderRadius: 8, border: 'none',
+              background: `${D.muted}10`, fontFamily: D.sans, fontSize: 13,
+              color: D.muted, cursor: 'default',
+            }}>AI Portfolio Analysis</button>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+              <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── SETTINGS TAB ──
+  function renderSettings() {
+    const cardStyle: React.CSSProperties = {
+      background: D.surface, borderRadius: 10, padding: 24, border: `1px solid ${D.border}`, marginBottom: 12,
+    }
+    const labelStyle: React.CSSProperties = { fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }
+
+    return (
+      <>
+        <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18, marginBottom: 20 }}>Settings</div>
+        {user ? (
+          <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr', gap: 12, maxWidth: 900 }}>
+            {/* Account */}
+            <div style={cardStyle}>
+              <div style={labelStyle}>Account</div>
+              <div style={{ fontFamily: D.sans, fontSize: 14, color: D.text, marginBottom: 12 }}>{user.email}</div>
+              <a href="/account" style={{
+                display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
+                background: `${D.muted}15`, border: `1px solid ${D.border}`,
+                color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+              }}>Manage Account & Billing</a>
+            </div>
+
+            {/* Subscription */}
+            <div style={cardStyle}>
+              <div style={labelStyle}>Subscription</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontFamily: D.sans, fontSize: 14, color: D.text }}>Status</span>
+                <span style={{
+                  fontFamily: D.sans, fontSize: 12, fontWeight: 700,
+                  padding: '3px 10px', borderRadius: 4,
+                  background: isPro ? `${D.accent}15` : `${D.muted}15`,
+                  color: isPro ? D.accent : D.muted,
+                }}>{isPro ? 'PRO' : 'FREE'}</span>
+              </div>
+              {isPro && profile?.subscription_source === 'stripe' && (
+                <button onClick={handleManageSubscription} style={{
+                  width: '100%', padding: 10, borderRadius: 6,
+                  border: `1px solid ${D.border}`, background: 'transparent',
+                  color: D.text, fontFamily: D.sans, fontSize: 12, cursor: 'pointer',
+                }}>Manage subscription</button>
+              )}
+              {isPro && profile?.subscription_source === 'apple' && (
+                <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>Manage in iPhone Settings &gt; Subscriptions</p>
+              )}
+              {!isPro && (
+                <a href="/#pricing" style={{
+                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
+                  background: `${D.accent}15`, color: D.accent, border: `1px solid ${D.accent}25`,
+                  fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}>Upgrade to Pro</a>
+              )}
+            </div>
+
+            {/* AI Keys */}
+            <div style={cardStyle}>
+              <div style={labelStyle}>API Keys (BYOK)</div>
+              {isPro ? (
+                <a href="/account" style={{
+                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
+                  background: `${D.muted}15`, border: `1px solid ${D.border}`,
+                  color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}>Manage API Keys</a>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, margin: '8px 0' }}>API Keys require Pro</p>
+                  <a href="/#pricing" style={{
+                    padding: '6px 16px', borderRadius: 4, background: `${D.accent}12`,
+                    color: D.accent, fontFamily: D.sans, fontSize: 11, fontWeight: 600, textDecoration: 'none',
+                  }}>Start free trial</a>
+                </div>
+              )}
+            </div>
+
+            {/* AI Usage */}
+            {aiUsage && (
+              <div style={cardStyle}>
+                <div style={labelStyle}>AI Usage</div>
+                {[
+                  { label: 'Today', used: aiUsage.daily_used, limit: aiUsage.daily_limit },
+                  { label: 'Month', used: aiUsage.monthly_used, limit: aiUsage.monthly_limit },
+                ].map(u => (
+                  <div key={u.label} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>{u.label}</span>
+                      <span style={{ fontFamily: D.mono, fontSize: 12, color: u.used >= u.limit ? D.red : D.text }}>{u.used} / {u.limit}</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, background: D.border, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.min((u.used / u.limit) * 100, 100)}%`, height: '100%', borderRadius: 2, background: u.used >= u.limit ? D.red : D.accent, transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                ))}
+                <p style={{ fontFamily: D.sans, fontSize: 11, color: D.muted }}>
+                  Own API key? No limits. <a href="/account" style={{ color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Add key</a>
+                </p>
+              </div>
+            )}
+
+            {/* Legal — full width */}
+            <div style={{ ...cardStyle, ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
+              <div style={labelStyle}>Legal</div>
+              {[
+                { label: 'Privacy Policy', href: 'https://www.iubenda.com/privacy-policy/19345970' },
+                { label: 'Terms of Service', href: 'https://www.iubenda.com/terms-and-conditions/19345970' },
+              ].map(l => (
+                <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '8px 0', textDecoration: 'none',
+                }}>
+                  <span style={{ fontFamily: D.sans, fontSize: 13, color: D.text }}>{l.label}</span>
+                  <span style={{ fontFamily: D.sans, fontSize: 13, color: D.muted }}>&rsaquo;</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: 24 }}>
+            <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 12 }}>Sign in to access your subscription and settings.</p>
+            <button onClick={() => setShowAuth(true)} style={{
+              width: '100%', padding: 12, borderRadius: 8, border: 'none',
+              background: D.accent, color: '#000', fontFamily: D.sans, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}>Sign In</button>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── DETAIL PANEL ──
+  function renderDetailPanel() {
+    if (!selectedTicker) return null
+    const sym = selectedTicker
     const d = getQuote(sym)
     const isCrypto = CRYPTO_SYMBOLS.has(sym)
     const ai = aiData[sym]
     if (!ai && isPro) fetchAI(sym)
+    const isUp = (d?.change_percent ?? 0) >= 0
 
     return (
-      <div style={{ padding: pad }}>
-        {/* Back button */}
-        <button onClick={() => setDetailTicker(null)} style={{
-          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
-          cursor: 'pointer', fontFamily: mono, fontSize: 11, color: '#888', marginBottom: 16, padding: 0,
+      <>
+        {isMobile && <div onClick={() => setSelectedTicker(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 299 }} />}
+
+        <div style={{
+          position: 'fixed', right: 0, top: isMobile ? 0 : 48, bottom: isMobile ? 60 : 0,
+          width: isMobile ? '100%' : 580,
+          background: '#0A0D14',
+          borderLeft: isMobile ? 'none' : `1px solid ${D.border}`,
+          overflowY: 'auto',
+          zIndex: 300,
+          display: 'flex', flexDirection: 'column',
         }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 1L3 6l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-          Back
-        </button>
-
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontFamily: mono, fontSize: 24, fontWeight: 700, color: '#f0ede6' }}>{sym}</span>
-            {isCrypto && <span style={{ fontFamily: mono, fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>CRYPTO</span>}
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: '#f0ede6' }}>
-              {d?.price != null ? `$${d.price.toFixed(isCrypto && d.price < 1 ? 6 : 2)}` : '—'}
+          {/* Panel header */}
+          <div style={{
+            padding: '16px 24px', borderBottom: `1px solid ${D.border}`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            position: 'sticky', top: 0, background: '#0A0D14', zIndex: 10,
+          }}>
+            <div>
+              <span style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 20, color: D.text }}>{sym}</span>
+              {isCrypto && <span style={{ marginLeft: 8, fontFamily: D.sans, fontSize: 9, padding: '2px 6px', borderRadius: 3, background: `${D.accentAmber}15`, color: D.accentAmber, fontWeight: 600 }}>CRYPTO</span>}
+              <span style={{ marginLeft: 12, fontFamily: D.mono, fontSize: 18, color: D.text }}>
+                ${d?.price?.toFixed(isCrypto && (d?.price ?? 0) < 1 ? 6 : 2) ?? '—'}
+              </span>
+              <span style={{ marginLeft: 8, fontFamily: D.mono, fontSize: 13, color: isUp ? D.accent : D.red }}>
+                {isUp ? '+' : ''}{(d?.change_percent ?? 0).toFixed(2)}%
+              </span>
             </div>
-            {d?.change_percent != null && (
-              <div style={{ fontFamily: mono, fontSize: 12, color: d.change_percent >= 0 ? '#4ade80' : '#f87171' }}>
-                {d.change_percent >= 0 ? '+' : ''}{d.change_percent.toFixed(2)}%
-              </div>
-            )}
+            <button onClick={() => setSelectedTicker(null)} style={{
+              background: 'none', border: 'none', color: D.muted, fontSize: 20, cursor: 'pointer', padding: 4,
+            }}>✕</button>
           </div>
-        </div>
 
-        {/* Chart — shown first */}
-        <div style={{ marginBottom: 16 }}>
-          <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
-        </div>
-
-        {/* Conviction score ring */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, padding: '12px 16px', ...card }}>
-          <div style={{ position: 'relative', width: 56, height: 56 }}>
-            <svg width="56" height="56" viewBox="0 0 56 56">
-              <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
-              <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(d?.conviction ?? 0)} strokeWidth="4"
-                strokeDasharray={`${(d?.conviction ?? 0) * 1.508} 999`}
-                strokeLinecap="round" transform="rotate(-90 28 28)" />
-            </svg>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 16, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>
-              {d?.conviction ?? '—'}
+          {/* Panel content */}
+          <div style={{ padding: '20px 24px', flex: 1 }}>
+            {/* Chart */}
+            <div style={{ marginBottom: 20 }}>
+              <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
             </div>
-          </div>
-          <div>
-            <div style={{ fontFamily: mono, fontSize: 12, fontWeight: 600, color: '#f0ede6' }}>
-              {(d?.conviction ?? 0) >= 75 ? 'STRONG' : (d?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
-            </div>
-            <div style={{ fontFamily: mono, fontSize: 9, color: '#555', marginTop: 2 }}>CONVICTION SCORE</div>
-          </div>
-        </div>
 
-        {/* Breakdown bars — Pro only */}
-        {isPro && d ? (
-          <div style={{ ...card, marginBottom: 16 }}>
-            <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SCORE BREAKDOWN</div>
-            {[
-              { l: 'Squeeze', v: d.squeeze_score },
-              { l: 'Options Flow', v: d.options_flow_score },
-              { l: 'Macro', v: d.macro_score },
-            ].map(b => (
-              <div key={b.l} style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>{b.l}</span>
-                  <span style={{ fontFamily: mono, fontSize: 10, color: tierColor(b.v ?? 50) }}>{b.v ?? '—'}</span>
-                </div>
-                <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                  <div style={{ width: `${b.v ?? 50}%`, height: '100%', borderRadius: 2, background: tierColor(b.v ?? 50) }} />
+            {/* Conviction score */}
+            <div style={{
+              background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px',
+              display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16,
+            }}>
+              <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+                <svg width="56" height="56" viewBox="0 0 56 56">
+                  <circle cx="28" cy="28" r="24" fill="none" stroke={D.border} strokeWidth="4" />
+                  <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(d?.conviction ?? 0)} strokeWidth="4"
+                    strokeDasharray={`${(d?.conviction ?? 0) * 1.508} 999`}
+                    strokeLinecap="round" transform="rotate(-90 28 28)" />
+                </svg>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: D.mono, fontSize: 16, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>
+                  {d?.conviction ?? '—'}
                 </div>
               </div>
-            ))}
-          </div>
-        ) : !isPro ? (
-          <div style={{ ...card, position: 'relative', marginBottom: 16 }}>
-            <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
-              <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SCORE BREAKDOWN</div>
-              {['Squeeze', 'Options Flow', 'Macro'].map(l => (
-                <div key={l} style={{ marginBottom: 8 }}>
-                  <div style={{ fontFamily: mono, fontSize: 10, color: '#888', marginBottom: 3 }}>{l}</div>
-                  <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)' }} />
+              <div>
+                <div style={{ fontFamily: D.sans, fontSize: 14, fontWeight: 700, color: D.text }}>
+                  {(d?.conviction ?? 0) >= 75 ? 'STRONG' : (d?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
                 </div>
-              ))}
-            </div>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-              <a href="/#pricing" style={{ fontFamily: mono, fontSize: 9, color: '#4ade80', textDecoration: 'none', background: 'rgba(74,222,128,0.1)', padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(74,222,128,0.2)' }}>Upgrade to Pro</a>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Options Flow (stocks only) */}
-        {!isCrypto && (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <OptionsFlowPanel symbol={sym} isPro={isPro} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <OptionsIntelligence symbol={sym} isPro={isPro} />
-            </div>
-          </>
-        )}
-
-        {/* AI Analysis */}
-        <div style={{ ...card, marginBottom: 16 }}>
-          <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>AI ANALYSIS</div>
-          {isPro ? (
-            ai?.loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[1, 2, 3].map(i => <div key={i} style={{ height: 12, borderRadius: 3, background: 'rgba(255,255,255,0.04)', width: `${100 - i * 15}%` }} />)}
+                <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginTop: 2 }}>Conviction Score</div>
               </div>
-            ) : ai ? (
-              <>
-                <p style={{ fontFamily: mono, fontSize: 11, color: '#aaa', lineHeight: 1.7, marginBottom: 8 }}>{ai.text}</p>
-                {ai.factors.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {ai.factors.map(f => (
-                      <span key={f} style={{ fontFamily: mono, fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.15)' }}>{f}</span>
-                    ))}
+            </div>
+
+            {/* Score breakdown — Pro */}
+            {isPro && d ? (
+              <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
+                <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Score Breakdown</div>
+                {[
+                  { l: 'Squeeze', v: d.squeeze_score },
+                  { l: 'Options Flow', v: d.options_flow_score },
+                  { l: 'Macro', v: d.macro_score },
+                ].map(b => (
+                  <div key={b.l} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>{b.l}</span>
+                      <span style={{ fontFamily: D.mono, fontSize: 12, color: tierColor(b.v ?? 50) }}>{b.v ?? '—'}</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, background: D.border, overflow: 'hidden' }}>
+                      <div style={{ width: `${b.v ?? 50}%`, height: '100%', borderRadius: 2, background: tierColor(b.v ?? 50), transition: 'width 0.3s' }} />
+                    </div>
                   </div>
-                )}
+                ))}
+              </div>
+            ) : !isPro ? (
+              <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', position: 'relative', marginBottom: 16 }}>
+                <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
+                  <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, letterSpacing: '1px', marginBottom: 12 }}>SCORE BREAKDOWN</div>
+                  {['Squeeze', 'Options Flow', 'Macro'].map(l => (
+                    <div key={l} style={{ marginBottom: 8 }}>
+                      <div style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, marginBottom: 4 }}>{l}</div>
+                      <div style={{ height: 4, borderRadius: 2, background: D.border }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Options panels (stocks only) */}
+            {!isCrypto && (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <OptionsFlowPanel symbol={sym} isPro={isPro} />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <OptionsIntelligence symbol={sym} isPro={isPro} />
+                </div>
               </>
-            ) : (
-              <p style={{ fontFamily: mono, fontSize: 11, color: '#555' }}>Loading analysis...</p>
-            )
-          ) : (
-            <div style={{ position: 'relative' }}>
-              <div style={{ filter: 'blur(4px)', userSelect: 'none' }}>
-                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', lineHeight: 1.7 }}>
-                  Based on current squeeze conditions and macro regime alignment, this ticker shows moderate-to-strong conviction with favorable positioning across multiple factors...
-                </p>
-              </div>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(0,0,0,0.4)' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                <p style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>Upgrade to Pro to see full AI analysis</p>
-                <a href="/#pricing" style={{ fontFamily: mono, fontSize: 9, color: '#4ade80', textDecoration: 'none', background: 'rgba(74,222,128,0.1)', padding: '4px 12px', borderRadius: 4, border: '1px solid rgba(74,222,128,0.2)' }}>Start free trial</a>
-              </div>
+            )}
+
+            {/* AI Analysis */}
+            <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
+              <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>AI Analysis</div>
+              {isPro ? (
+                ai?.loading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[1, 2, 3].map(i => <div key={i} style={{ height: 14, borderRadius: 4, background: D.border, width: `${100 - i * 15}%` }} />)}
+                  </div>
+                ) : ai ? (
+                  <>
+                    <p style={{ fontFamily: D.sans, fontSize: 13, color: D.text, lineHeight: 1.7, marginBottom: 8, opacity: 0.85 }}>{ai.text}</p>
+                    {ai.factors.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {ai.factors.map(f => (
+                          <span key={f} style={{ fontFamily: D.sans, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: `${D.accent}10`, color: D.accent, fontWeight: 600 }}>{f}</span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ fontFamily: D.sans, fontSize: 13, color: D.muted }}>Loading analysis...</p>
+                )
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <div style={{ filter: 'blur(4px)', userSelect: 'none' }}>
+                    <p style={{ fontFamily: D.sans, fontSize: 13, color: D.muted, lineHeight: 1.7 }}>
+                      Based on current squeeze conditions and macro regime alignment, this ticker shows moderate-to-strong conviction with favorable positioning across multiple factors...
+                    </p>
+                  </div>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(6,8,16,0.6)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                    <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>AI Analysis requires Pro</p>
+                    <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Start free trial</a>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Ticker-specific news */}
+            <TickerNews symbol={sym} />
+          </div>
         </div>
+      </>
+    )
+  }
+
+  // ════════════════════════════════════════
+  // ── MAIN LAYOUT ──
+  // ════════════════════════════════════════
+
+  if (authLoading) {
+    return (
+      <div style={{ background: D.bg, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: D.sans, fontSize: 14, color: D.muted }}>Loading...</div>
       </div>
     )
   }
 
-  // ── Render tab content ──
-  function renderContent() {
-    if (authLoading) {
-      return (
-        <div style={{ padding: pad }}>
-          {[1, 2, 3].map(i => (<div key={i} style={{ ...card }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><div style={{ display: 'flex', gap: 10 }}><div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} /><div style={{ width: 48, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} /></div><div style={{ width: 60, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} /></div></div>))}
-        </div>
-      )
-    }
-
-    if (!user && tab !== 'settings' && tab !== 'macro') {
-      return (
-        <div style={{ padding: '80px 14px', textAlign: 'center' }}>
-          <div style={{ fontFamily: mono, fontSize: 28, color: '#4ade80', marginBottom: 16 }}>XATLAS</div>
-          <p style={{ fontFamily: mono, fontSize: 13, color: '#888', marginBottom: 24, lineHeight: 1.6 }}>Sign in to access conviction scores,<br />macro data, and your watchlist.</p>
-          <button onClick={() => setShowAuth(true)} style={{ padding: '12px 32px', borderRadius: 8, border: 'none', background: '#4ade80', color: '#052e16', fontFamily: mono, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Sign in</button>
-        </div>
-      )
-    }
-
-    // ── Scanner ── (uses watchlist symbols)
-    if (tab === 'scanner') {
-      const symbols = watchlist.length ? watchlist : []
-      return (
-        <div style={{ padding: pad }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em' }}>SCANNER</span>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontFamily: mono, fontSize: 9, padding: '3px 8px', borderRadius: 4, background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' }}>LIVE</span>
-              <button onClick={() => setTab('watchlist')} style={{
-                fontFamily: mono, fontSize: 9, padding: '3px 8px', borderRadius: 4,
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                color: '#888', cursor: 'pointer',
-              }}>Edit</button>
-            </div>
-          </div>
-          {symbols.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              <p style={{ fontFamily: mono, fontSize: 12, color: '#555', marginBottom: 12 }}>No tickers in your watchlist</p>
-              <button onClick={() => setTab('watchlist')} style={{
-                fontFamily: mono, fontSize: 11, padding: '8px 20px', borderRadius: 6,
-                background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)',
-                color: '#4ade80', cursor: 'pointer', fontWeight: 600,
-              }}>Add tickers</button>
-            </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr', gap: 8 }}>
-            {symbols.map(sym => <TickerCard key={sym} sym={sym} />)}
-          </div>
-        </div>
-      )
-    }
-
-    // ── Macro ──
-    if (tab === 'macro') {
-      const indicators = macro ? [
-        { key: 'fed_rate', value: macro.fed_rate, fmt: `${macro.fed_rate.toFixed(2)}%` },
-        { key: 'vix', value: macro.vix, fmt: macro.vix.toFixed(1) },
-        { key: 'yield_10y', value: macro.yield_10y, fmt: `${macro.yield_10y.toFixed(2)}%` },
-        { key: 'dxy', value: macro.dxy, fmt: macro.dxy.toFixed(2) },
-        { key: 'unemployment', value: macro.unemployment, fmt: `${macro.unemployment.toFixed(1)}%` },
-        { key: 'credit_spread', value: macro.credit_spread, fmt: `${macro.credit_spread.toFixed(2)}%` },
-      ] : []
-
-      return (
-        <div style={{ padding: pad }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em' }}>MACRO</span>
-            <span style={{ fontFamily: mono, fontSize: 9, padding: '3px 8px', borderRadius: 4, background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' }}>LIVE</span>
-          </div>
-          {macro ? (
-            <>
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <span style={{ fontFamily: mono, fontSize: 48, fontWeight: 700, color: tierColor(macro.risk_on_score) }}>{macro.risk_on_score}</span>
-                <span style={{ fontFamily: mono, fontSize: 10, color: '#555', display: 'block' }}>RISK SCORE / 100</span>
-                <span style={{
-                  display: 'inline-block', marginTop: 8, fontFamily: mono, fontSize: 11, fontWeight: 600,
-                  padding: '4px 12px', borderRadius: 6, letterSpacing: '0.08em',
-                  background: macro.regime === 'Risk-On' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
-                  color: macro.regime === 'Risk-On' ? '#4ade80' : '#f87171',
-                  border: `1px solid ${macro.regime === 'Risk-On' ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.25)'}`,
-                }}>{macro.regime.toUpperCase()}</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
-                {indicators.map(ind => {
-                  const info = MACRO_INFO[ind.key]
-                  const expanded = expandedMacro === ind.key
-                  const status = info.getStatus(ind.value)
-                  return (
-                    <div key={ind.key}
-                      onClick={() => setExpandedMacro(expanded ? null : ind.key)}
-                      style={{
-                        ...card, padding: '10px 12px', cursor: 'pointer',
-                        ...(expanded ? { gridColumn: isDesktop ? 'span 1' : 'span 2' } : {}),
-                      }} {...hoverProps}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontFamily: mono, fontSize: 13, color: '#555', letterSpacing: '0.1em' }}>{info.title.toUpperCase()}</div>
-                        <div style={{
-                          width: 6, height: 6, borderRadius: '50%',
-                          background: status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? '#f87171'
-                            : status.includes('Moderate') || status.includes('Neutral') ? '#fbbf24' : '#4ade80',
-                        }} />
-                      </div>
-                      <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 600, color: '#f0ede6', marginTop: 4 }}>{ind.fmt}</div>
-                      {expanded && (
-                        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
-                          <p style={{ fontFamily: mono, fontSize: 13, color: '#888', lineHeight: 1.6, marginBottom: 6 }}>{info.desc}</p>
-                          <div style={{ fontFamily: mono, fontSize: 13, padding: '4px 10px', borderRadius: 4, display: 'inline-block', background: (status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? `${RED}15` : status.includes('Moderate') || status.includes('Neutral') ? 'rgba(251,191,36,0.1)' : `${GREEN}15`), color: status.includes('Extreme') || status.includes('Stressed') || status.includes('Elevated') ? '#f87171' : status.includes('Moderate') || status.includes('Neutral') ? '#fbbf24' : '#4ade80' }}>
-                            {status}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: 40, color: '#555', fontFamily: mono, fontSize: 12 }}>Loading...</div>
-          )}
-        </div>
-      )
-    }
-
-    // ── Watchlist ──
-    if (tab === 'watchlist') {
-      const atLimit = !isPro && watchlist.length >= FREE_WATCHLIST_LIMIT
-      return (
-        <div style={{ padding: pad }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em' }}>WATCHLIST</span>
-            <span style={{ fontFamily: mono, fontSize: 9, color: '#555' }}>{watchlist.length}{isPro ? '' : ` / ${FREE_WATCHLIST_LIMIT}`}</span>
-          </div>
-          {user && <SearchInput />}
-          {isDesktop && watchlist.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>{['Symbol', 'Price', 'Change', 'Conviction', '', ''].map(h => (
-                  <th key={h} style={{ fontFamily: mono, fontSize: 9, color: '#555', textAlign: 'left', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', letterSpacing: '0.1em' }}>{h.toUpperCase()}</th>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {watchlist.map(sym => {
-                  const d = getQuote(sym)
-                  return (
-                    <tr key={sym} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
-                      <td style={{ fontFamily: mono, fontSize: 13, fontWeight: 600, color: '#f0ede6', padding: '10px 12px' }}>{sym}</td>
-                      <td style={{ fontFamily: mono, fontSize: 12, color: '#f0ede6', padding: '10px 12px' }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</td>
-                      <td style={{ fontFamily: mono, fontSize: 12, color: (d?.change_percent ?? 0) >= 0 ? '#4ade80' : '#f87171', padding: '10px 12px' }}>
-                        {d?.change_percent != null ? `${d.change_percent >= 0 ? '+' : ''}${d.change_percent.toFixed(2)}%` : '—'}
-                      </td>
-                      <td style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: tierColor(d?.conviction ?? 0), padding: '10px 12px' }}>{d?.conviction ?? '—'}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        <button onClick={() => setDetailTicker(sym)} style={{ background: 'none', border: `1px solid ${GREEN}44`, borderRadius: 4, color: GREEN, cursor: 'pointer', fontFamily: mono, fontSize: 9, padding: '3px 8px' }}>Chart</button>
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        <button onClick={() => removeTicker(sym)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontFamily: mono, fontSize: 14, padding: '2px 6px', transition: 'color 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.color = '#f87171' }} onMouseLeave={e => { e.currentTarget.style.color = '#555' }}>x</button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          ) : (
-            watchlist.map(sym => <TickerCard key={sym} sym={sym} showRemove />)
-          )}
-          {watchlist.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 40, color: '#555', fontFamily: mono, fontSize: 12 }}>
-              {user ? 'Search and add tickers above' : 'Sign in to build your watchlist'}
-            </div>
-          )}
-          {atLimit && (
-            <a href="/#pricing" style={{ display: 'block', textAlign: 'center', padding: 10, borderRadius: 8, marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)', color: '#4ade80', fontFamily: mono, fontSize: 10, fontWeight: 600, textDecoration: 'none' }}>
-              Upgrade to Pro for unlimited watchlist
-            </a>
-          )}
-
-          {/* AI Portfolio Analysis */}
-          {watchlist.length >= 2 && (
-            <div style={{ marginTop: 16 }}>
-              {isPro ? (
-                <>
-                  <button onClick={async () => {
-                    if (portfolioAnalysis.loading) return
-                    setShowPortfolio(true)
-                    setPortfolioAnalysis({ loading: true, data: null })
-                    try {
-                      const res = await fetch(`${BACKEND}/portfolio/analyze`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'X-User-ID': user?.id ?? '',
-                          'X-Is-Pro': isPro ? 'true' : 'false',
-                          'X-Has-BYOK': 'false',
-                        },
-                        body: JSON.stringify({ symbols: watchlist, regime: macro?.regime ?? 'unknown' }),
-                      })
-                      const data = await res.json()
-                      setPortfolioAnalysis({ loading: false, data })
-                    } catch {
-                      setPortfolioAnalysis({ loading: false, data: null })
-                    }
-                  }} disabled={portfolioAnalysis.loading} style={{
-                    width: '100%', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer',
-                    background: `${GREEN}1a`, fontFamily: mono, fontSize: 11, fontWeight: 600,
-                    color: GREEN, transition: 'opacity 0.15s',
-                    opacity: portfolioAnalysis.loading ? 0.6 : 1,
-                  }}>
-                    {portfolioAnalysis.loading ? 'Analyzing portfolio...' : 'AI Portfolio Analysis'}
-                  </button>
-
-                  {showPortfolio && portfolioAnalysis.data && (
-                    <div style={{ ...card, marginTop: 8 }}>
-                      <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>PORTFOLIO ANALYSIS</div>
-
-                      {portfolioAnalysis.data.top_pick && (
-                        <div style={{ marginBottom: 12, padding: '10px 12px', background: `${GREEN}0d`, borderRadius: 6, border: `1px solid ${GREEN}33` }}>
-                          <div style={{ fontFamily: mono, fontSize: 9, color: GREEN, marginBottom: 4 }}>TOP PICK</div>
-                          <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6' }}>
-                            {portfolioAnalysis.data.top_pick.symbol}
-                            <span style={{ fontSize: 11, color: GREEN, marginLeft: 8 }}>{portfolioAnalysis.data.top_pick.conviction}/100</span>
-                          </div>
-                          <div style={{ fontFamily: mono, fontSize: 10, color: '#888', marginTop: 4 }}>{portfolioAnalysis.data.top_pick.reasoning}</div>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <span style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>Regime alignment</span>
-                        <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 600, color:
-                          portfolioAnalysis.data.regime_alignment === 'aligned' ? GREEN :
-                          portfolioAnalysis.data.regime_alignment === 'misaligned' ? RED : '#fbbf24' }}>
-                          {portfolioAnalysis.data.regime_alignment.toUpperCase()}
-                        </span>
-                      </div>
-
-                      {portfolioAnalysis.data.risk_factors.length > 0 && (
-                        <div>
-                          <div style={{ fontFamily: mono, fontSize: 9, color: '#555', marginBottom: 6 }}>RISK FACTORS</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            {portfolioAnalysis.data.risk_factors.map((f, i) => (
-                              <span key={i} style={{ fontFamily: mono, fontSize: 9, padding: '3px 6px', borderRadius: 3, background: `${RED}12`, color: RED, border: `1px solid ${RED}22` }}>{f}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  <button disabled style={{
-                    width: '100%', padding: 12, borderRadius: 8, border: 'none',
-                    background: 'rgba(255,255,255,0.03)', fontFamily: mono, fontSize: 11,
-                    color: '#444', cursor: 'default',
-                  }}>
-                    AI Portfolio Analysis
-                  </button>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                    <a href="/#pricing" style={{ fontFamily: mono, fontSize: 9, color: GREEN, textDecoration: 'none' }}>Upgrade to Pro</a>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )
-    }
-
-    // ── Settings ──
-    if (tab === 'settings') {
-      return (
-        <div style={{ padding: pad, maxWidth: isDesktop ? 600 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
-          <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em', display: 'block', marginBottom: 16 }}>SETTINGS</span>
-          {user ? (
-            <>
-              <div style={card}>
-                <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>ACCOUNT</div>
-                <div style={{ fontFamily: mono, fontSize: 11, color: '#aaa' }}>{user.email}</div>
-              </div>
-              <a href="/account" style={{ display: 'block', textAlign: 'center', padding: 10, borderRadius: 8, marginBottom: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#aaa', fontFamily: mono, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>Manage account &amp; billing</a>
-              <div style={card}>
-                <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>SUBSCRIPTION</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontFamily: mono, fontSize: 12, color: '#f0ede6' }}>Status</span>
-                  <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 600, color: isPro ? '#4ade80' : '#888' }}>{isPro ? 'PRO' : 'FREE'}</span>
-                </div>
-                {isPro && profile?.subscription_source === 'stripe' && (
-                  <button onClick={handleManageSubscription} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#aaa', fontFamily: mono, fontSize: 10, cursor: 'pointer', marginTop: 4 }}>Manage subscription</button>
-                )}
-                {isPro && profile?.subscription_source === 'apple' && (
-                  <p style={{ fontFamily: mono, fontSize: 10, color: '#666', marginTop: 4 }}>Manage in iPhone Settings &gt; Subscriptions</p>
-                )}
-                {!isPro && (
-                  <a href="/#pricing" style={{ display: 'block', textAlign: 'center', padding: 8, borderRadius: 6, marginTop: 4, background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)', fontFamily: mono, fontSize: 10, fontWeight: 600, textDecoration: 'none' }}>Upgrade to Pro</a>
-                )}
-              </div>
-              {/* AI Usage */}
-              {aiUsage && (
-                <div style={card}>
-                  <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>AI USAGE (SERVER KEY)</div>
-                  {[
-                    { label: 'Today', used: aiUsage.daily_used, limit: aiUsage.daily_limit },
-                    { label: 'Month', used: aiUsage.monthly_used, limit: aiUsage.monthly_limit },
-                  ].map(u => (
-                    <div key={u.label} style={{ marginBottom: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={{ fontFamily: mono, fontSize: 10, color: '#888' }}>{u.label}</span>
-                        <span style={{ fontFamily: mono, fontSize: 10, color: u.used >= u.limit ? RED : '#aaa' }}>{u.used} / {u.limit}</span>
-                      </div>
-                      <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min((u.used / u.limit) * 100, 100)}%`, height: '100%', borderRadius: 2, background: u.used >= u.limit ? RED : GREEN, transition: 'width 0.3s' }} />
-                      </div>
-                    </div>
-                  ))}
-                  <p style={{ fontFamily: mono, fontSize: 9, color: '#444', marginTop: 6 }}>
-                    Using your own API key? No limits apply. <a href="/account" style={{ color: GREEN, textDecoration: 'none' }}>Add key</a>
-                  </p>
-                </div>
-              )}
-
-              {/* API Keys — Pro gated */}
-              <div style={card}>
-                <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>API KEYS (BYOK)</div>
-                {isPro ? (
-                  <a href="/account" style={{ display: 'block', textAlign: 'center', padding: 8, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#aaa', fontFamily: mono, fontSize: 10, fontWeight: 600, textDecoration: 'none' }}>Manage API keys</a>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 0' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                    <p style={{ fontFamily: mono, fontSize: 10, color: '#666', textAlign: 'center' }}>API Keys require Pro or free trial</p>
-                    <a href="/#pricing" style={{ padding: '6px 16px', borderRadius: 4, background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)', fontFamily: mono, fontSize: 9, fontWeight: 600, textDecoration: 'none' }}>Start free trial</a>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div style={card}>
-              <p style={{ fontFamily: mono, fontSize: 11, color: '#888', marginBottom: 10 }}>Sign in to access your subscription and settings.</p>
-              <button onClick={() => setShowAuth(true)} style={{ width: '100%', padding: 10, borderRadius: 8, border: 'none', background: '#4ade80', color: '#052e16', fontFamily: mono, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Sign in</button>
-            </div>
-          )}
-          <div style={card}>
-            <div style={{ fontFamily: mono, fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 10 }}>LEGAL</div>
-            {[{ label: 'Privacy Policy', href: 'https://www.iubenda.com/privacy-policy/19345970' }, { label: 'Terms of Service', href: 'https://www.iubenda.com/terms-and-conditions/19345970' }].map(l => (
-              <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, textDecoration: 'none' }}>
-                <span style={{ fontFamily: mono, fontSize: 11, color: '#aaa' }}>{l.label}</span>
-                <span style={{ fontFamily: mono, fontSize: 11, color: '#333' }}>&rsaquo;</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    return null
-  }
-
-  // ── Layout ──
   return (
-    <div style={{ background: '#080808', minHeight: '100dvh', display: 'flex', flexDirection: isDesktop ? 'row' : 'column' }}>
+    <div style={{ background: D.bg, minHeight: '100dvh', color: D.text }}>
       {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
 
-      {/* Desktop sidebar */}
-      {isDesktop && (
-        <div style={{ width: 220, flexShrink: 0, background: '#0a0a0a', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 40 }}>
-          <div style={{ padding: '20px 20px 24px' }}>
-            <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.2em' }}>XATLAS</span>
-            <div style={{ fontFamily: mono, fontSize: 8, color: '#4ade80', letterSpacing: '0.2em', marginTop: 2 }}>INTELLIGENCE</div>
-          </div>
-          <div style={{ flex: 1, padding: '0 8px' }}>
-            {TABS.map(t => {
-              const active = tab === t.id
-              return (
-                <button key={t.id} onClick={() => { setDetailTicker(null); setTab(t.id) }} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: active ? 'rgba(74,222,128,0.08)' : 'transparent', marginBottom: 2, transition: 'background 0.15s' }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
-                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={active ? '#4ade80' : '#666'} strokeWidth={1.8} strokeLinecap="round"><path d={t.icon} /></svg>
-                  <span style={{ fontFamily: mono, fontSize: 15, color: active ? '#4ade80' : '#888', fontWeight: active ? 600 : 400 }}>{t.label}</span>
-                </button>
-              )
-            })}
-          </div>
-          <div style={{ padding: '16px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            {lastUpdated && <div style={{ fontFamily: mono, fontSize: 8, color: '#333', marginBottom: 8 }}>Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
-            {!authLoading && (user ? (
-              <button onClick={signOut} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#666', fontFamily: mono, fontSize: 10, cursor: 'pointer' }}>Sign out</button>
-            ) : (
-              <button onClick={() => setShowAuth(true)} style={{ width: '100%', padding: 8, borderRadius: 6, border: 'none', background: 'rgba(74,222,128,0.1)', color: '#4ade80', fontFamily: mono, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>Sign in</button>
+      {/* ── TOP BAR (48px, fixed, full width) ── */}
+      <header style={{
+        position: 'fixed', top: 0, left: 0, right: 0,
+        height: 48, background: D.bg,
+        borderBottom: `1px solid ${D.border}`,
+        display: 'flex', alignItems: 'center',
+        padding: '0 24px', zIndex: 200, gap: isMobile ? 16 : 32,
+      }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 8, flexShrink: 0 }}>
+          <img src="/xatlas-logo.png" width={28} height={28} style={{ borderRadius: 6 }} alt="XAtlas" />
+          {!isMobile && <span style={{ fontFamily: D.sans, fontWeight: 800, color: D.text, fontSize: 16, letterSpacing: '-0.3px' }}>XATLAS</span>}
+        </div>
+
+        {/* Nav tabs — horizontal, Bloomberg style */}
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 0, height: 48 }}>
+            {(['scanner', 'macro', 'watchlist', 'news', 'settings'] as Tab[]).map(t => (
+              <button key={t} onClick={() => { setSelectedTicker(null); setTab(t) }} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '0 16px', height: 48,
+                borderBottom: tab === t ? `2px solid ${D.accent}` : '2px solid transparent',
+                color: tab === t ? D.text : D.muted,
+                fontFamily: D.sans, fontWeight: 600, fontSize: 13,
+                textTransform: 'uppercase' as const, letterSpacing: '0.8px',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (tab !== t) e.currentTarget.style.color = D.text }}
+              onMouseLeave={e => { if (tab !== t) e.currentTarget.style.color = D.muted }}>
+                {t}
+              </button>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Main content */}
-      <div style={{ flex: 1, marginLeft: isDesktop ? 220 : 0, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-        {!isDesktop && (
-          <div style={{ padding: '4px 16px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, paddingTop: 'env(safe-area-inset-top, 12px)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.15em' }}>XATLAS</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: mono, fontSize: 9, color: isLive ? GREEN : '#888' }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isLive ? GREEN : '#888', animation: isLive ? 'pulse-dot 2s infinite' : 'none' }} />
-                {isLive ? 'LIVE' : !stockMarketOpen ? 'MKT CLOSED' : 'DELAYED'}
+        {/* Right side — live indicator + user */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16 }}>
+          {/* Live indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: isLive ? D.accent : D.muted,
+              boxShadow: isLive ? `0 0 8px ${D.accent}60` : 'none',
+            }} />
+            <span style={{ fontFamily: D.mono, fontSize: 10, color: isLive ? D.accent : D.muted, fontWeight: 600, letterSpacing: '0.5px' }}>
+              {isLive ? 'LIVE' : !stockMarketOpen ? 'MKT CLOSED' : 'DELAYED'}
+            </span>
+          </div>
+
+          {/* User menu */}
+          {!authLoading && (
+            user ? (
+              <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowUserMenu(!showUserMenu)} style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: D.accent, border: 'none', cursor: 'pointer',
+                  color: '#000', fontWeight: 700, fontSize: 13, fontFamily: D.sans,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {user.email?.[0]?.toUpperCase() ?? 'U'}
+                </button>
+                {showUserMenu && (
+                  <div style={{
+                    position: 'absolute', right: 0, top: 40,
+                    background: D.card, border: `1px solid ${D.border}`,
+                    borderRadius: 10, padding: '6px 0', minWidth: 200, zIndex: 1000,
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  }}>
+                    <div style={{ padding: '8px 16px', color: D.muted, fontSize: 11, fontFamily: D.sans, borderBottom: `1px solid ${D.border}` }}>
+                      {user.email}
+                      {isPro && <span style={{ marginLeft: 8, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accent}15`, color: D.accent, fontWeight: 700 }}>PRO</span>}
+                    </div>
+                    <a href="/account" style={{ display: 'block', padding: '10px 16px', color: D.text, textDecoration: 'none', fontSize: 13, fontFamily: D.sans }}>My Account</a>
+                    <button onClick={async () => { await signOut(); setShowUserMenu(false) }} style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '10px 16px', color: D.red,
+                      background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: D.sans,
+                    }}>Sign Out</button>
+                  </div>
+                )}
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {!authLoading && (user ? (
-                <button onClick={signOut} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', color: '#666', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>Sign out</button>
-              ) : (
-                <button onClick={() => setShowAuth(true)} style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 4, padding: '3px 8px', color: '#4ade80', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>Sign in</button>
-              ))}
-            </div>
-          </div>
-        )}
-        {isDesktop && (
-          <div style={{ padding: '12px 32px', background: '#0a0a0a', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            {lastUpdated && <span style={{ fontFamily: mono, fontSize: 9, color: '#444' }}>Last updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-          </div>
-        )}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: isDesktop ? 32 : 70, maxWidth: isDesktop ? 1200 : undefined, width: '100%' }}>
-          {detailTicker ? renderDetail(detailTicker) : renderContent()}
+            ) : (
+              <button onClick={() => setShowAuth(true)} style={{
+                padding: '6px 16px', borderRadius: 6, border: 'none',
+                background: D.accent, color: '#000', fontFamily: D.sans,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}>Sign In</button>
+            )
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Mobile tab bar */}
-      {!isDesktop && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 0', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a', zIndex: 1000, pointerEvents: 'all' }}>
-          {TABS.map(t => {
+      {/* ── MAIN CONTENT ── */}
+      <main style={{
+        marginTop: 48,
+        marginBottom: isMobile ? 60 : 0,
+        minHeight: 'calc(100vh - 48px)',
+        background: D.bg,
+        padding: isMobile ? '16px 16px' : '20px 24px',
+        marginRight: selectedTicker && !isMobile ? 580 : 0,
+        transition: 'margin-right 0.2s ease',
+      }}>
+        {tab === 'scanner' && renderScanner()}
+        {tab === 'macro' && renderMacro()}
+        {tab === 'watchlist' && renderWatchlist()}
+        {tab === 'news' && <NewsTab />}
+        {tab === 'settings' && renderSettings()}
+      </main>
+
+      {/* ── DETAIL PANEL (right slide-in) ── */}
+      {renderDetailPanel()}
+
+      {/* ── MOBILE BOTTOM TAB BAR ── */}
+      {isMobile && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+          height: 60, paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          borderTop: `1px solid ${D.border}`, background: D.bg, zIndex: 200,
+        }}>
+          {([
+            { id: 'scanner' as Tab, icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
+            { id: 'macro' as Tab, icon: 'M3 20h18M6 16V10M10 16V6M14 16V12M18 16V8' },
+            { id: 'watchlist' as Tab, icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
+            { id: 'news' as Tab, icon: 'M4 4h16v16H4zM4 8h16M8 4v16' },
+            { id: 'settings' as Tab, icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z' },
+          ]).map(t => {
             const active = tab === t.id
             return (
-              <button key={t.id} onClick={() => { setDetailTicker(null); setTab(t.id) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 12px' }}>
-                <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={active ? '#4ade80' : '#555'} strokeWidth={1.8} strokeLinecap="round"><path d={t.icon} /></svg>
-                <span style={{ fontFamily: mono, fontSize: 13, color: active ? '#4ade80' : '#555', letterSpacing: '0.04em', fontWeight: active ? 600 : 400 }}>{t.label}</span>
+              <button key={t.id} onClick={() => { setSelectedTicker(null); setTab(t.id) }} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 16px',
+              }}>
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={active ? D.accent : D.muted} strokeWidth={1.8} strokeLinecap="round"><path d={t.icon} /></svg>
+                <span style={{ fontFamily: D.sans, fontSize: 10, color: active ? D.accent : D.muted, fontWeight: active ? 700 : 500 }}>{t.id}</span>
               </button>
             )
           })}
@@ -1104,12 +1506,4 @@ export default function PWAApp() {
       )}
     </div>
   )
-}
-
-function tierColor(c: number): string {
-  if (c >= 80) return '#4ade80'
-  if (c >= 60) return '#22d3ee'
-  if (c >= 40) return '#fbbf24'
-  if (c >= 20) return '#fb923c'
-  return '#6b7280'
 }

@@ -18,7 +18,7 @@ const COLORS = {
   mutedLight: "#8892B0",
 };
 
-const NAV_LINKS = ["Features", "Demo", "Pricing", "FAQ"];
+const NAV_LINKS = ["Features", "Demo", "News", "Pricing", "FAQ"];
 
 function Nav() {
   const { user, signOut } = useAuth();
@@ -407,6 +407,94 @@ function FAQ({ items }: { items: { q: string; a: string }[] }) {
   );
 }
 
+function NewsSection() {
+  const [news, setNews] = useState<{ id: string; title: string; summary: string; source: string; url: string; published_at: number; category: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/news?type=all&limit=6")
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setNews(data) })
+      .catch(() => {});
+  }, []);
+
+  const categoryColors: Record<string, string> = { market: "#4F8EF7", sec: "#F5A623", regulation: "#E24B4A", fed: "#00C896" };
+
+  return (
+    <div id="news" style={{ padding: "100px 2rem", background: COLORS.bg }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ marginBottom: 48, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 20 }}>
+          <div>
+            <SectionLabel>Live Intelligence</SectionLabel>
+            <h2 style={{ fontSize: 44, fontWeight: 800, fontFamily: "'Bebas Neue', Impact, sans-serif", letterSpacing: 2, marginBottom: 16, color: COLORS.text }}>
+              MARKETS, REGULATIONS<br/>& POLICY
+            </h2>
+            <p style={{ color: COLORS.mutedLight, fontSize: 16, maxWidth: 480, lineHeight: 1.7 }}>
+              SEC filings, Fed announcements, financial regulations — updated every 5 minutes from free government and market data sources.
+            </p>
+          </div>
+          <a href="/app" style={{
+            padding: "10px 20px", background: "transparent",
+            border: `1px solid ${COLORS.border}`, borderRadius: 8,
+            color: COLORS.mutedLight, textDecoration: "none", fontSize: 13, fontWeight: 500,
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.accent; e.currentTarget.style.color = COLORS.accent }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.mutedLight }}>
+            View all news →
+          </a>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          {news.length > 0 ? news.slice(0, 6).map((article, i) => {
+            const color = categoryColors[article.category] ?? COLORS.muted;
+            return (
+              <a key={article.id || i} href={article.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "block" }}>
+                <div style={{
+                  background: COLORS.card, borderRadius: 10, padding: 20,
+                  border: `1px solid ${COLORS.border}`, cursor: "pointer",
+                  transition: "border-color 0.15s, transform 0.15s",
+                  borderLeft: `3px solid ${color}`, height: "100%",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-2px)" }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.borderLeftColor = color; e.currentTarget.style.transform = "translateY(0)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      color, textTransform: "uppercase", letterSpacing: "0.8px",
+                      background: `${color}15`, padding: "3px 8px", borderRadius: 4, flexShrink: 0,
+                    }}>{article.source}</span>
+                    <span style={{ fontSize: 11, color: COLORS.muted, flexShrink: 0 }}>
+                      {new Date(article.published_at * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text, lineHeight: 1.5, marginBottom: 8 }}>
+                    {article.title}
+                  </div>
+                  {article.summary && (
+                    <div style={{
+                      fontSize: 12, color: COLORS.mutedLight, lineHeight: 1.6,
+                      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden",
+                    }}>{article.summary}</div>
+                  )}
+                  <div style={{ marginTop: 12, fontSize: 11, color, fontWeight: 600 }}>Read more →</div>
+                </div>
+              </a>
+            );
+          }) : (
+            Array(6).fill(0).map((_, i) => (
+              <div key={i} style={{ background: COLORS.card, borderRadius: 10, padding: 20, border: `1px solid ${COLORS.border}` }}>
+                {[80, 100, 60].map((w, j) => (
+                  <div key={j} style={{ height: 12, background: COLORS.border, borderRadius: 4, width: `${w}%`, marginBottom: 10 }} />
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function handleCheckout(plan: string) {
   try {
     const res = await fetch('/api/stripe/checkout', {
@@ -662,6 +750,9 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* NEWS */}
+      <NewsSection />
 
       {/* PRICING */}
       <div id="pricing" style={{ padding: "100px 2rem" }}>
