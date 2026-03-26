@@ -131,7 +131,7 @@ export function useLivePrices(symbols: string[]) {
     }
 
     poll()
-    const interval = setInterval(poll, 10000)
+    const interval = setInterval(poll, 5000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbolsKey, detectFlashes])
