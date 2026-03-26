@@ -109,7 +109,7 @@ export default function PWAApp() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
-  const { quotes: liveQuotes, isLive, isConnected, stockMarketOpen, flashes } = useLivePrices(watchlist)
+  const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
 
   const isPro = profile?.is_pro ?? false
 
@@ -1064,9 +1064,9 @@ export default function PWAApp() {
           <div style={{ padding: '4px 16px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, paddingTop: 'env(safe-area-inset-top, 12px)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.15em' }}>XATLAS</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: mono, fontSize: 9, color: isLive ? GREEN : isConnected ? '#fbbf24' : '#888' }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isLive ? GREEN : isConnected ? '#fbbf24' : '#888', animation: isLive ? 'pulse-dot 2s infinite' : 'none' }} />
-                {isLive ? 'LIVE' : isConnected && !stockMarketOpen ? 'MKT CLOSED' : 'DELAYED'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: mono, fontSize: 9, color: isLive ? GREEN : '#888' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isLive ? GREEN : '#888', animation: isLive ? 'pulse-dot 2s infinite' : 'none' }} />
+                {isLive ? 'LIVE' : !stockMarketOpen ? 'MKT CLOSED' : 'DELAYED'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

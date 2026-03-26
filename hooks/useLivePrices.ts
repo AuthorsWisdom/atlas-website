@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 
+const CRYPTO_SET = new Set(['BTC','ETH','SOL','XRP','DOGE','ADA','AVAX','LINK','BNB','MATIC','LTC','DOT','UNI','ATOM'])
+
 interface LiveQuote {
   symbol: string
   price: number
   change_percent: number
   timestamp: number
-  type?: string
   is_live?: boolean
 }
 
@@ -20,124 +21,146 @@ interface StreamEvent {
 
 export function useLivePrices(symbols: string[]) {
   const [quotes, setQuotes] = useState<Record<string, LiveQuote>>({})
-  const [isConnected, setIsConnected] = useState(false)
+  const [isLive, setIsLive] = useState(false)
   const [stockMarketOpen, setStockMarketOpen] = useState(false)
   const [flashes, setFlashes] = useState<Record<string, 'up' | 'down' | null>>({})
-  const [reconnectCount, setReconnectCount] = useState(0)
   const prevPrices = useRef<Record<string, number>>({})
-  const esRef = useRef<EventSource | null>(null)
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const symbolsKey = symbols.join(',')
+  const binanceWsRef = useRef<WebSocket | null>(null)
+  const binanceReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sseRef = useRef<EventSource | null>(null)
+  const sseReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const detectFlashes = useCallback((updates: Record<string, LiveQuote>) => {
-    const newFlashes: Record<string, 'up' | 'down' | null> = {}
-    for (const [sym, q] of Object.entries(updates)) {
-      if (q.price == null || q.price === 0) continue
-      const prev = prevPrices.current[sym]
-      // Only flash if price actually changed by more than 0.001
-      if (prev !== undefined && Math.abs(q.price - prev) > 0.001) {
-        newFlashes[sym] = q.price > prev ? 'up' : 'down'
-      }
-      prevPrices.current[sym] = q.price
+  const cryptoSymbols = symbols.filter(s => CRYPTO_SET.has(s.toUpperCase()))
+  const stockSymbols = symbols.filter(s => !CRYPTO_SET.has(s.toUpperCase()))
+  const cryptoKey = cryptoSymbols.join(',')
+  const stockKey = stockSymbols.join(',')
+
+  const updateQuote = useCallback((symbol: string, price: number, changePct: number) => {
+    if (price === 0) return
+    const prev = prevPrices.current[symbol]
+    if (prev !== undefined && Math.abs(price - prev) > 0.001) {
+      const dir = price > prev ? 'up' as const : 'down' as const
+      setFlashes(f => ({ ...f, [symbol]: dir }))
+      setTimeout(() => setFlashes(f => ({ ...f, [symbol]: null })), 800)
     }
-    if (Object.keys(newFlashes).length > 0) {
-      setFlashes(prev => ({ ...prev, ...newFlashes }))
-      setTimeout(() => {
-        setFlashes(prev => {
-          const next = { ...prev }
-          for (const sym of Object.keys(newFlashes)) next[sym] = null
-          return next
-        })
-      }, 800)
-    }
+    prevPrices.current[symbol] = price
+    setQuotes(q => ({
+      ...q,
+      [symbol]: { symbol, price, change_percent: changePct, timestamp: Date.now(), is_live: true },
+    }))
   }, [])
 
-  // SSE connection
+  // ── Binance WebSocket for crypto (direct, ~1s updates) ──
   useEffect(() => {
-    if (symbols.length === 0) return
+    if (cryptoSymbols.length === 0) return
 
-    if (esRef.current) { esRef.current.close(); esRef.current = null }
-    if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null }
+    const connect = () => {
+      if (binanceWsRef.current) { binanceWsRef.current.close(); binanceWsRef.current = null }
 
-    const es = new EventSource(`/api/stream?symbols=${symbolsKey}`)
-    esRef.current = es
+      const streams = cryptoSymbols.map(s => `${s.toLowerCase()}usdt@ticker`).join('/')
+      const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`)
+      binanceWsRef.current = ws
 
-    es.onopen = () => setIsConnected(true)
+      ws.onopen = () => setIsLive(true)
 
-    es.onmessage = (event) => {
-      try {
-        const data: StreamEvent = JSON.parse(event.data)
-        if (data.error) return
-        setStockMarketOpen(data.stock_market_open)
-        if (data.quotes && Object.keys(data.quotes).length > 0) {
-          detectFlashes(data.quotes)
-          setQuotes(prev => {
-            const next: Record<string, LiveQuote> = { ...prev }
-            for (const [key, val] of Object.entries(data.quotes)) next[key] = { ...val }
-            return next
-          })
-        }
-      } catch { /* ignore */ }
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data)
+          const d = msg.data
+          if (!d?.s) return
+          const sym = d.s.replace('USDT', '').toUpperCase()
+          updateQuote(sym, parseFloat(d.c), parseFloat(d.P))
+        } catch { /* ignore */ }
+      }
+
+      ws.onerror = () => setIsLive(false)
+
+      ws.onclose = () => {
+        binanceWsRef.current = null
+        binanceReconnectRef.current = setTimeout(connect, 3000)
+      }
     }
 
-    es.onerror = () => {
-      setIsConnected(false)
-      es.close()
-      esRef.current = null
-      reconnectTimer.current = setTimeout(() => setReconnectCount(c => c + 1), 5000)
-    }
+    connect()
 
     return () => {
-      es.close()
-      esRef.current = null
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-      setIsConnected(false)
+      binanceWsRef.current?.close()
+      binanceWsRef.current = null
+      if (binanceReconnectRef.current) clearTimeout(binanceReconnectRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbolsKey, reconnectCount, detectFlashes])
+  }, [cryptoKey, updateQuote])
 
-  // REST polling fallback — every 10s, cache-busted
+  // ── Railway SSE for stocks ──
+  useEffect(() => {
+    if (stockSymbols.length === 0) return
+
+    const connect = () => {
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null }
+
+      const es = new EventSource(`/api/stream?symbols=${stockKey}`)
+      sseRef.current = es
+
+      es.onopen = () => setIsLive(true)
+
+      es.onmessage = (event) => {
+        try {
+          const data: StreamEvent = JSON.parse(event.data)
+          if (data.error) return
+          setStockMarketOpen(data.stock_market_open)
+          if (data.quotes) {
+            for (const [sym, q] of Object.entries(data.quotes)) {
+              if (q.price) updateQuote(sym, q.price, q.change_percent ?? 0)
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      es.onerror = () => {
+        sseRef.current?.close()
+        sseRef.current = null
+        setIsLive(false)
+        sseReconnectRef.current = setTimeout(connect, 5000)
+      }
+    }
+
+    connect()
+
+    return () => {
+      sseRef.current?.close()
+      sseRef.current = null
+      if (sseReconnectRef.current) clearTimeout(sseReconnectRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockKey, updateQuote])
+
+  // ── REST polling fallback — only for symbols without recent WS data ──
   useEffect(() => {
     if (symbols.length === 0) return
 
     const poll = async () => {
-      const results = await Promise.allSettled(
-        symbols.map(s =>
-          fetch(`/api/quote/${s}?t=${Date.now()}`, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : null)
-        )
-      )
-      const updates: Record<string, LiveQuote> = {}
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled' && r.value && r.value.price != null) {
-          updates[symbols[i]] = {
-            symbol: symbols[i],
-            price: r.value.price,
-            change_percent: r.value.change_percent ?? 0,
-            timestamp: Date.now() / 1000,
-            type: r.value.type,
-            is_live: true,
+      await Promise.allSettled(
+        symbols.map(async s => {
+          // Skip if WS updated within last 8 seconds
+          const existing = prevPrices.current[s]
+          if (existing !== undefined) {
+            const q = quotes[s]
+            if (q && Date.now() - q.timestamp < 8000) return
           }
-        }
-      })
-      if (Object.keys(updates).length > 0) {
-        detectFlashes(updates)
-        setQuotes(prev => {
-          const next: Record<string, LiveQuote> = { ...prev }
-          for (const [key, val] of Object.entries(updates)) next[key] = { ...val }
-          return next
+          try {
+            const res = await fetch(`/api/quote/${s}?t=${Date.now()}`, { cache: 'no-store' })
+            const data = await res.json()
+            if (data.price) updateQuote(s, data.price, data.change_percent ?? 0)
+          } catch { /* ignore */ }
         })
-      }
+      )
     }
 
     poll()
-    const interval = setInterval(poll, 5000)
+    const interval = setInterval(poll, 8000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbolsKey, detectFlashes])
+  }, [symbols.join(','), updateQuote])
 
-  const anyLive = Object.values(quotes).some(q => q.is_live)
-  const isLive = isConnected || anyLive
-
-  return { quotes, isLive, isConnected, stockMarketOpen, flashes }
+  return { quotes, isLive, stockMarketOpen, flashes }
 }
