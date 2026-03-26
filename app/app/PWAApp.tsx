@@ -649,7 +649,7 @@ export default function PWAApp() {
     ].filter(Boolean).join('\n')
 
     try {
-      const res = await fetch(`${BACKEND}/ai/chat`, {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

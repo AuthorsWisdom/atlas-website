@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const maxDuration = 15
+
 const RAILWAY = 'https://web-production-e9e4b.up.railway.app'
 
 export async function GET(
@@ -7,15 +10,22 @@ export async function GET(
   { params }: { params: Promise<{ symbol: string }> },
 ) {
   const { symbol } = await params
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
 
   try {
     const res = await fetch(
       `${RAILWAY}/options/flow/${symbol.toUpperCase()}`,
-      { signal: AbortSignal.timeout(15000) },
+      { signal: controller.signal, cache: 'no-store' },
     )
-    if (!res.ok) return NextResponse.json({ error: 'Flow data unavailable' }, { status: res.status })
+    clearTimeout(timeout)
+    if (!res.ok) {
+      console.error(`Options flow ${symbol}: Railway returned ${res.status}`)
+      return NextResponse.json({ error: 'Flow data unavailable', status: res.status }, { status: 200 })
+    }
     return NextResponse.json(await res.json())
   } catch {
-    return NextResponse.json({ error: 'Flow data unavailable' }, { status: 502 })
+    clearTimeout(timeout)
+    return NextResponse.json({ error: 'Flow data unavailable' }, { status: 200 })
   }
 }
