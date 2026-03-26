@@ -1420,64 +1420,11 @@ export default function PWAApp() {
                 Billed directly by your chosen AI provider at their rates. XAtlas has no markup.
               </p>
               {isPro ? (
-                <>
-                  <a href="/account" style={{
-                    display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
-                    background: `${D.muted}15`, border: `1px solid ${D.border}`,
-                    color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                    marginBottom: 16,
-                  }}>Manage API Keys</a>
-
-                  {/* Anthropic model selector */}
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, fontWeight: 600 }}>Anthropic Model</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {[
-                        { id: 'claude-opus-4-5', label: 'Claude Opus 4.5', desc: 'Most capable' },
-                        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', desc: 'Balanced' },
-                        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', desc: 'Fastest & cheapest' },
-                      ].map(m => (
-                        <button key={m.id} onClick={() => { setSelectedAnthropicModel(m.id); setPreferredProvider('anthropic'); saveModelPreference('anthropic', m.id) }}
-                          style={{
-                            padding: '10px 14px', background: selectedAnthropicModel === m.id ? `${D.accent}12` : D.card,
-                            border: `1px solid ${selectedAnthropicModel === m.id ? D.accent : D.border}`,
-                            borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          }}>
-                          <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontFamily: D.sans, fontWeight: 600, color: D.text, fontSize: 13 }}>{m.label}</div>
-                            <div style={{ fontSize: 11, color: D.muted }}>{m.desc}</div>
-                          </div>
-                          {selectedAnthropicModel === m.id && <span style={{ color: D.accent, fontSize: 14 }}>✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* OpenAI model selector */}
-                  <div>
-                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, fontWeight: 600 }}>OpenAI Model</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {[
-                        { id: 'gpt-4o', label: 'GPT-4o', desc: 'Most capable' },
-                        { id: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fastest & cheapest' },
-                        { id: 'o1-mini', label: 'o1 Mini', desc: 'Advanced reasoning' },
-                      ].map(m => (
-                        <button key={m.id} onClick={() => { setSelectedOpenAIModel(m.id); setPreferredProvider('openai'); saveModelPreference('openai', m.id) }}
-                          style={{
-                            padding: '10px 14px', background: selectedOpenAIModel === m.id ? `${D.accentBlue}12` : D.card,
-                            border: `1px solid ${selectedOpenAIModel === m.id ? D.accentBlue : D.border}`,
-                            borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          }}>
-                          <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontFamily: D.sans, fontWeight: 600, color: D.text, fontSize: 13 }}>{m.label}</div>
-                            <div style={{ fontSize: 11, color: D.muted }}>{m.desc}</div>
-                          </div>
-                          {selectedOpenAIModel === m.id && <span style={{ color: D.accentBlue, fontSize: 14 }}>✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                <a href="/account" style={{
+                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
+                  background: `${D.muted}15`, border: `1px solid ${D.border}`,
+                  color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}>Manage API Keys</a>
               ) : (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
@@ -1894,11 +1841,35 @@ export default function PWAApp() {
 
             {!aiChatMinimized && (
               <>
-                {/* Context pills */}
-                <div style={{ padding: '8px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                  {selectedTicker && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accent}12`, color: D.accent, fontFamily: D.sans, fontWeight: 600 }}>{selectedTicker}</span>}
-                  {macro?.regime && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentBlue}12`, color: D.accentBlue, fontFamily: D.sans, fontWeight: 600 }}>{macro.regime}</span>}
-                  {watchlist.length > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentAmber}12`, color: D.accentAmber, fontFamily: D.sans, fontWeight: 600 }}>{watchlist.length} watchlist</span>}
+                {/* Model selector + context */}
+                <div style={{ padding: '8px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
+                  {/* BYOK Anthropic models */}
+                  {isPro && [
+                    { id: 'claude-haiku-4-5', label: 'Haiku', desc: 'Fast' },
+                    { id: 'claude-sonnet-4-5', label: 'Sonnet', desc: 'Balanced' },
+                    { id: 'claude-opus-4-5', label: 'Opus', desc: 'Powerful' },
+                  ].map(m => (
+                    <button key={m.id} onClick={() => { setSelectedAnthropicModel(m.id); setPreferredProvider('anthropic'); saveModelPreference('anthropic', m.id) }}
+                      style={{
+                        padding: '3px 10px', borderRadius: 20, cursor: 'pointer',
+                        background: selectedAnthropicModel === m.id && preferredProvider === 'anthropic' ? `${D.accent}20` : 'transparent',
+                        border: `1px solid ${selectedAnthropicModel === m.id && preferredProvider === 'anthropic' ? D.accent : D.border}`,
+                        color: selectedAnthropicModel === m.id && preferredProvider === 'anthropic' ? D.accent : D.muted,
+                        fontSize: 11, fontFamily: D.sans, fontWeight: 600,
+                      }}>
+                      {m.label}
+                    </button>
+                  ))}
+                  {/* No BYOK — show default */}
+                  {!isPro && (
+                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans }}>
+                      {isPro ? `● Sonnet 4.5 · XAtlas Pro` : `● Haiku 4.5 · XAtlas Free`}
+                      {' · '}
+                      <button onClick={() => setTab('settings')} style={{ background: 'none', border: 'none', color: D.accent, cursor: 'pointer', fontSize: 11, padding: 0, fontFamily: D.sans }}>Add your own key →</button>
+                    </div>
+                  )}
+                  {/* Context badges */}
+                  {selectedTicker && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentBlue}12`, color: D.accentBlue, fontFamily: D.sans, fontWeight: 600, marginLeft: 'auto' }}>{selectedTicker}</span>}
                 </div>
 
                 {/* Suggested prompts */}
