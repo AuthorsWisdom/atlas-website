@@ -682,8 +682,8 @@ export default function Home() {
             />
             <FeatureCard
               icon="🔐"
-              title="BYOK Architecture"
-              desc="Your API keys are encrypted at rest and never stored client-side. You maintain full control of your data pipeline — no lock-in."
+              title="Bring Your Own Key"
+              desc="Use your own AI provider keys. Billed directly by your chosen provider at their rates — XAtlas has no markup. Keys encrypted at rest."
             />
             <FeatureCard
               icon="📱"

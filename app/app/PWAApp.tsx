@@ -417,6 +417,9 @@ export default function PWAApp() {
   const [aiDragging, setAiDragging] = useState(false)
   const aiDragOffset = useRef({ x: 0, y: 0 })
   const [windowWidth, setWindowWidth] = useState(0)
+  const [selectedAnthropicModel, setSelectedAnthropicModel] = useState('claude-sonnet-4-5')
+  const [selectedOpenAIModel, setSelectedOpenAIModel] = useState('gpt-4o-mini')
+  const [preferredProvider, setPreferredProvider] = useState('anthropic')
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -565,6 +568,8 @@ export default function PWAApp() {
           messages: [...chatMessages, userMsg],
           context,
           symbol: selectedTicker,
+          model: preferredProvider === 'anthropic' ? selectedAnthropicModel : selectedOpenAIModel,
+          provider: preferredProvider,
         }),
       })
       const data = await res.json()
@@ -671,8 +676,8 @@ export default function PWAApp() {
       if (res.status === 429) {
         const err = await res.json()
         const msg = err.detail?.error === 'daily_limit_reached'
-          ? 'Daily AI limit reached. Resets tomorrow. Add your own API key for unlimited access.'
-          : 'Monthly AI limit reached. Add your own API key for unlimited access.'
+          ? 'Daily AI limit reached. Resets tomorrow. Add your own key for unlimited — billed directly by your provider.'
+          : 'Monthly AI limit reached. Add your own key for unlimited — billed directly by your provider.'
         setAIData(prev => ({ ...prev, [sym]: { loading: false, text: msg, factors: ['LIMIT_REACHED'] } }))
         return
       }
@@ -687,6 +692,15 @@ export default function PWAApp() {
       }))
     } catch {
       setAIData(prev => ({ ...prev, [sym]: { loading: false, text: 'Analysis unavailable', factors: [] } }))
+    }
+  }
+
+  async function saveModelPreference(provider: string, model: string) {
+    if (!user) return
+    try {
+      await getSupabase().from('profiles').update({ preferred_ai_model: model, preferred_ai_provider: provider }).eq('id', user.id)
+    } catch (e) {
+      console.error('Failed to save model preference:', e)
     }
   }
 
@@ -1325,15 +1339,71 @@ export default function PWAApp() {
               )}
             </div>
 
-            {/* AI Keys */}
+            {/* AI Keys + Model Selector */}
             <div style={cardStyle}>
-              <div style={labelStyle}>API Keys (BYOK)</div>
+              <div style={labelStyle}>Bring Your Own Key</div>
+              <p style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginBottom: 12 }}>
+                Billed directly by your chosen AI provider at their rates. XAtlas has no markup.
+              </p>
               {isPro ? (
-                <a href="/account" style={{
-                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
-                  background: `${D.muted}15`, border: `1px solid ${D.border}`,
-                  color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                }}>Manage API Keys</a>
+                <>
+                  <a href="/account" style={{
+                    display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
+                    background: `${D.muted}15`, border: `1px solid ${D.border}`,
+                    color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                    marginBottom: 16,
+                  }}>Manage API Keys</a>
+
+                  {/* Anthropic model selector */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, fontWeight: 600 }}>Anthropic Model</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[
+                        { id: 'claude-opus-4-5', label: 'Claude Opus 4.5', desc: 'Most capable' },
+                        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', desc: 'Balanced' },
+                        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', desc: 'Fastest & cheapest' },
+                      ].map(m => (
+                        <button key={m.id} onClick={() => { setSelectedAnthropicModel(m.id); setPreferredProvider('anthropic'); saveModelPreference('anthropic', m.id) }}
+                          style={{
+                            padding: '10px 14px', background: selectedAnthropicModel === m.id ? `${D.accent}12` : D.card,
+                            border: `1px solid ${selectedAnthropicModel === m.id ? D.accent : D.border}`,
+                            borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          }}>
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontFamily: D.sans, fontWeight: 600, color: D.text, fontSize: 13 }}>{m.label}</div>
+                            <div style={{ fontSize: 11, color: D.muted }}>{m.desc}</div>
+                          </div>
+                          {selectedAnthropicModel === m.id && <span style={{ color: D.accent, fontSize: 14 }}>✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* OpenAI model selector */}
+                  <div>
+                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, fontWeight: 600 }}>OpenAI Model</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[
+                        { id: 'gpt-4o', label: 'GPT-4o', desc: 'Most capable' },
+                        { id: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fastest & cheapest' },
+                        { id: 'o1-mini', label: 'o1 Mini', desc: 'Advanced reasoning' },
+                      ].map(m => (
+                        <button key={m.id} onClick={() => { setSelectedOpenAIModel(m.id); setPreferredProvider('openai'); saveModelPreference('openai', m.id) }}
+                          style={{
+                            padding: '10px 14px', background: selectedOpenAIModel === m.id ? `${D.accentBlue}12` : D.card,
+                            border: `1px solid ${selectedOpenAIModel === m.id ? D.accentBlue : D.border}`,
+                            borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          }}>
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontFamily: D.sans, fontWeight: 600, color: D.text, fontSize: 13 }}>{m.label}</div>
+                            <div style={{ fontSize: 11, color: D.muted }}>{m.desc}</div>
+                          </div>
+                          {selectedOpenAIModel === m.id && <span style={{ color: D.accentBlue, fontSize: 14 }}>✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
@@ -1365,7 +1435,7 @@ export default function PWAApp() {
                   </div>
                 ))}
                 <p style={{ fontFamily: D.sans, fontSize: 11, color: D.muted }}>
-                  Own API key? No limits. <a href="/account" style={{ color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Add key</a>
+                  Bring your own key for unlimited AI. Billed directly by your chosen provider — no markup. <a href="/account" style={{ color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Add key</a>
                 </p>
               </div>
             )}
