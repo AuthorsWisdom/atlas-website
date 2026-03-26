@@ -50,9 +50,29 @@ export default function AuthModal({ open, onClose, onSuccess, defaultView = 'sig
     setLoading(true)
     setError('')
     try {
-      const { error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) {
+        // If user exists (e.g. from waitlist OTP), try signing in instead
+        const msg = error.message.toLowerCase()
+        if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('user already exists')) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+          if (signInError) {
+            setError('An account with this email already exists. Try signing in instead.')
+            setLoading(false)
+            return
+          }
+          setLoading(false)
+          handleSuccess()
+          return
+        }
         setError(error.message)
+        setLoading(false)
+        return
+      }
+      // Supabase may return a user with a fake session if email confirmation is required
+      // Check if the user identity was actually created
+      if (data.user?.identities?.length === 0) {
+        setError('An account with this email already exists. Try signing in instead.')
         setLoading(false)
         return
       }
