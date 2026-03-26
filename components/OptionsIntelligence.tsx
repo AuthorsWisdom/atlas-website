@@ -139,11 +139,16 @@ export default function OptionsIntelligence({ symbol, isPro }: { symbol: string;
       {rsiData.length > 2 && <RSISparkline data={rsiData} />}
 
       {/* Active contracts */}
-      {activeContracts.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: mono, fontSize: 11, color: '#555', letterSpacing: '0.1em', marginBottom: 8 }}>MOST ACTIVE CONTRACTS</div>
-          {activeContracts.slice(0, 5).map((c, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontFamily: mono, fontSize: 11, color: '#555', letterSpacing: '0.1em', marginBottom: 8 }}>MOST ACTIVE CONTRACTS</div>
+        {activeContracts.length === 0 ? (
+          <div style={{ padding: '16px 0', textAlign: 'center' }}>
+            <div style={{ fontFamily: mono, fontSize: 13, color: '#888' }}>Active contracts available during market hours</div>
+            <div style={{ fontFamily: mono, fontSize: 11, color: '#555', marginTop: 4 }}>Mon-Fri, 9:30am-4:00pm ET</div>
+          </div>
+        ) : (
+          activeContracts.slice(0, 5).map((c, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < Math.min(activeContracts.length, 5) - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontFamily: mono, fontSize: 10, padding: '2px 6px', borderRadius: 3, fontWeight: 600, background: c.type === 'call' ? `${GREEN}1a` : `${RED}1a`, color: c.type === 'call' ? GREEN : RED }}>
                   {c.type.toUpperCase()}
@@ -157,9 +162,9 @@ export default function OptionsIntelligence({ symbol, isPro }: { symbol: string;
                 {c.delta != null && <span style={{ fontFamily: mono, fontSize: 11, color: '#666' }}>{c.delta.toFixed(2)}</span>}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   )
 }
