@@ -37,13 +37,7 @@ function Nav() {
     }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <polygon points="14,2 26,8 26,20 14,26 2,20 2,8" fill="none" stroke={COLORS.accent} strokeWidth="1.5"/>
-            <polygon points="14,7 21,11 21,17 14,21 7,17 7,11" fill={COLORS.accent} opacity="0.15"/>
-            <line x1="14" y1="2" x2="14" y2="7" stroke={COLORS.accent} strokeWidth="1.5"/>
-            <line x1="14" y1="21" x2="14" y2="26" stroke={COLORS.accent} strokeWidth="1.5"/>
-            <circle cx="14" cy="14" r="3" fill={COLORS.accent}/>
-          </svg>
+          <Image src="/xatlas-logo.png" alt="XAtlas" width={40} height={40} style={{ borderRadius: 8, objectFit: "cover" }} />
           <span style={{ fontFamily: "'Bebas Neue', 'Impact', sans-serif", fontSize: 22, letterSpacing: 2, color: COLORS.text }}>XATLAS</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
@@ -419,13 +413,6 @@ export default function Home() {
           background: `radial-gradient(ellipse 80% 60% at 50% -10%, ${COLORS.accent}12 0%, transparent 70%)`,
           pointerEvents: "none",
         }}/>
-        <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: `linear-gradient(${COLORS.border}40 1px, transparent 1px), linear-gradient(90deg, ${COLORS.border}40 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-          maskImage: "radial-gradient(ellipse at 50% 50%, black 20%, transparent 80%)",
-          pointerEvents: "none",
-        }}/>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 2rem 60px", width: "100%", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${COLORS.accent}10`, border: `1px solid ${COLORS.accent}30`, borderRadius: 100, marginBottom: 32 }}>
@@ -770,7 +757,7 @@ export default function Home() {
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 48 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <Image src="/xatlas-logo-clean.png" alt="XAtlas" width={32} height={32} style={{ borderRadius: 7, objectFit: "cover" }} />
+              <Image src="/xatlas-logo.png" alt="XAtlas" width={40} height={40} style={{ borderRadius: 8, objectFit: "cover" }} />
               <span style={{ fontFamily: "'Bebas Neue', Impact, sans-serif", fontSize: 18, letterSpacing: 2, color: COLORS.text }}>XATLAS</span>
             </div>
             <p style={{ color: COLORS.muted, fontSize: 13, lineHeight: 1.7, maxWidth: 260 }}>
