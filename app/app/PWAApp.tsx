@@ -412,6 +412,10 @@ export default function PWAApp() {
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [chatInput, setChatInput] = useState('')
   const [aiChatLoading, setAiChatLoading] = useState(false)
+  const [aiChatMinimized, setAiChatMinimized] = useState(false)
+  const [aiChatPos, setAiChatPos] = useState<{ x: number; y: number } | null>(null)
+  const [aiDragging, setAiDragging] = useState(false)
+  const aiDragOffset = useRef({ x: 0, y: 0 })
   const [windowWidth, setWindowWidth] = useState(0)
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -452,6 +456,13 @@ export default function PWAApp() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchQuotes, watchlist])
+
+  // Re-fetch scores when Pro status loads (profile is async)
+  useEffect(() => {
+    if (!isPro || watchlist.length === 0) return
+    fetchQuotes(watchlist)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPro])
 
   // Live price polling
   useEffect(() => {
@@ -512,7 +523,23 @@ export default function PWAApp() {
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  // ── AI Chat ──
+  // ── AI Chat drag ──
+  useEffect(() => {
+    if (!aiDragging) return
+    const handleMove = (e: MouseEvent) => setAiChatPos({ x: e.clientX - aiDragOffset.current.x, y: e.clientY - aiDragOffset.current.y })
+    const handleUp = () => setAiDragging(false)
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => { window.removeEventListener('mousemove', handleMove); window.removeEventListener('mouseup', handleUp) }
+  }, [aiDragging])
+
+  const startAiDrag = (e: React.MouseEvent) => {
+    const pos = aiChatPos ?? { x: windowWidth - 440, y: 80 }
+    aiDragOffset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
+    setAiDragging(true)
+  }
+
+  // ── AI Chat send ──
   const sendMessage = async (content: string) => {
     if (!content.trim() || aiChatLoading) return
     setChatInput('')
@@ -832,6 +859,8 @@ export default function PWAApp() {
           </button>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: windowWidth > 1400 ? '1fr 320px' : '1fr', gap: 20, alignItems: 'start' }}>
+        <div>
         {symbols.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 16 }}>No tickers in your watchlist</p>
@@ -951,18 +980,20 @@ export default function PWAApp() {
             })}
           </div>
         )}
+        </div>
 
-        {/* News sidebar on wide screens */}
-        {windowWidth > 1400 && symbols.length > 0 && (
+        {/* News sidebar — in document flow, sticky */}
+        {windowWidth > 1400 && (
           <div style={{
-            background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`,
-            padding: 20, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto',
-            position: 'fixed', right: 24, top: 88, width: 360,
+            position: 'sticky', top: 68,
+            maxHeight: 'calc(100vh - 88px)', overflowY: 'auto',
+            background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: 16,
           }}>
-            <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 14, marginBottom: 16 }}>Latest News</div>
+            <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 12 }}>Latest News</div>
             <NewsFeed limit={12} isPro={isPro} />
           </div>
         )}
+        </div>
       </>
     )
   }
@@ -1687,95 +1718,116 @@ export default function PWAApp() {
         {tab === 'settings' && renderSettings()}
       </main>
 
-      {/* ── AI CHAT PANEL ── */}
-      {showAIChat && !isMobile && (
-        <div style={{
-          position: 'fixed', right: selectedTicker ? 580 : 0, top: 48, bottom: 0,
-          width: 380, background: '#0A0D14',
-          borderLeft: `1px solid ${D.border}`,
-          zIndex: 250, display: 'flex', flexDirection: 'column',
-        }}>
-          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 14 }}>AI Assistant</span>
-            <button onClick={() => setShowAIChat(false)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 16 }}>✕</button>
-          </div>
-
-          {/* Context pills */}
-          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {selectedTicker && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accent}12`, color: D.accent, fontFamily: D.sans, fontWeight: 600 }}>{selectedTicker}</span>}
-            {macro?.regime && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentBlue}12`, color: D.accentBlue, fontFamily: D.sans, fontWeight: 600 }}>{macro.regime}</span>}
-            {watchlist.length > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentAmber}12`, color: D.accentAmber, fontFamily: D.sans, fontWeight: 600 }}>{watchlist.length} watchlist</span>}
-          </div>
-
-          {/* Suggested prompts */}
-          {chatMessages.length === 0 && (
-            <div style={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: 10, color: D.muted, marginBottom: 10, fontFamily: D.sans, fontWeight: 600, letterSpacing: '0.5px' }}>SUGGESTED</div>
-              {[
-                selectedTicker ? `Analyze ${selectedTicker} conviction score` : 'What does the current macro regime mean for equities?',
-                'Which watchlist stock has the strongest setup?',
-                'Summarize today\'s most important news',
-                'What are the key risks right now?',
-              ].map((prompt, i) => (
-                <button key={i} onClick={() => sendMessage(prompt)}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', marginBottom: 6,
-                    background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
-                    color: D.muted, fontSize: 12, cursor: 'pointer', fontFamily: D.sans, transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = D.accent; e.currentTarget.style.color = D.text }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.muted }}>
-                  {prompt}
-                </button>
-              ))}
+      {/* ── AI CHAT — Floating Draggable Window ── */}
+      {showAIChat && !isMobile && (() => {
+        const pos = aiChatPos ?? { x: windowWidth - 440, y: 80 }
+        return (
+          <div style={{
+            position: 'fixed', left: pos.x, top: pos.y,
+            width: 400, height: aiChatMinimized ? 44 : 560,
+            background: '#0A0D14', border: `1px solid ${D.border}`, borderRadius: 12,
+            zIndex: 500, display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)', overflow: 'hidden',
+            transition: aiDragging ? 'none' : 'height 0.2s ease',
+          }}>
+            {/* Draggable header */}
+            <div onMouseDown={startAiDrag} style={{
+              padding: '10px 16px', borderBottom: aiChatMinimized ? 'none' : `1px solid ${D.border}`,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              cursor: aiDragging ? 'grabbing' : 'grab', background: D.card, userSelect: 'none', flexShrink: 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: D.accent, fontSize: 14 }}>✦</span>
+                <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 14 }}>AI Assistant</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button onClick={e => { e.stopPropagation(); setAiChatMinimized(!aiChatMinimized) }}
+                  style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>—</button>
+                <button onClick={e => { e.stopPropagation(); setShowAIChat(false) }}
+                  style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 16 }}>✕</button>
+              </div>
             </div>
-          )}
 
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
-            {chatMessages.map((msg, i) => (
-              <div key={i} style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={{
-                  maxWidth: '85%', padding: '10px 14px',
-                  borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  background: msg.role === 'user' ? `${D.accent}18` : D.card,
-                  border: `1px solid ${msg.role === 'user' ? `${D.accent}35` : D.border}`,
-                  color: D.text, fontSize: 13, lineHeight: 1.6, fontFamily: D.sans, whiteSpace: 'pre-wrap',
-                }}>{msg.content}</div>
-              </div>
-            ))}
-            {aiChatLoading && (
-              <div style={{ display: 'flex', gap: 4, padding: '10px 0' }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: D.accent, opacity: 0.6 }} />
-                ))}
-              </div>
+            {!aiChatMinimized && (
+              <>
+                {/* Context pills */}
+                <div style={{ padding: '8px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+                  {selectedTicker && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accent}12`, color: D.accent, fontFamily: D.sans, fontWeight: 600 }}>{selectedTicker}</span>}
+                  {macro?.regime && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentBlue}12`, color: D.accentBlue, fontFamily: D.sans, fontWeight: 600 }}>{macro.regime}</span>}
+                  {watchlist.length > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentAmber}12`, color: D.accentAmber, fontFamily: D.sans, fontWeight: 600 }}>{watchlist.length} watchlist</span>}
+                </div>
+
+                {/* Suggested prompts */}
+                {chatMessages.length === 0 && (
+                  <div style={{ padding: '12px 16px', flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, color: D.muted, marginBottom: 8, fontFamily: D.sans, fontWeight: 600, letterSpacing: '0.5px' }}>SUGGESTED</div>
+                    {[
+                      selectedTicker ? `Analyze ${selectedTicker} conviction score` : 'What does the current macro regime mean for equities?',
+                      'Which watchlist stock has the strongest setup?',
+                      'Summarize today\'s most important news',
+                    ].map((prompt, i) => (
+                      <button key={i} onClick={() => sendMessage(prompt)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', marginBottom: 4,
+                          background: D.card, border: `1px solid ${D.border}`, borderRadius: 6,
+                          color: D.muted, fontSize: 11, cursor: 'pointer', fontFamily: D.sans, transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = D.accent; e.currentTarget.style.color = D.text }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.muted }}>
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Messages */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px' }}>
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      <div style={{
+                        maxWidth: '85%', padding: '8px 12px',
+                        borderRadius: msg.role === 'user' ? '10px 10px 4px 10px' : '10px 10px 10px 4px',
+                        background: msg.role === 'user' ? `${D.accent}18` : D.card,
+                        border: `1px solid ${msg.role === 'user' ? `${D.accent}35` : D.border}`,
+                        color: D.text, fontSize: 12, lineHeight: 1.6, fontFamily: D.sans, whiteSpace: 'pre-wrap',
+                      }}>{msg.content}</div>
+                    </div>
+                  ))}
+                  {aiChatLoading && (
+                    <div style={{ display: 'flex', gap: 4, padding: '8px 0' }}>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: D.accent, opacity: 0.6 }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Input */}
+                <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}`, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput) } }}
+                      placeholder="Ask about markets, news..."
+                      style={{
+                        flex: 1, background: D.card, border: `1px solid ${D.border}`, borderRadius: 6,
+                        padding: '8px 12px', color: D.text, fontSize: 12, fontFamily: D.sans, outline: 'none',
+                      }}
+                    />
+                    <button onClick={() => sendMessage(chatInput)} disabled={!chatInput.trim() || aiChatLoading}
+                      style={{
+                        padding: '8px 12px', background: D.accent, border: 'none', borderRadius: 6,
+                        color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 13,
+                        opacity: !chatInput.trim() || aiChatLoading ? 0.4 : 1,
+                      }}>↑</button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
-
-          {/* Input */}
-          <div style={{ padding: '14px 20px', borderTop: `1px solid ${D.border}` }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(chatInput) } }}
-                placeholder="Ask about markets, news..."
-                style={{
-                  flex: 1, background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
-                  padding: '10px 14px', color: D.text, fontSize: 13, fontFamily: D.sans, outline: 'none',
-                }}
-              />
-              <button onClick={() => sendMessage(chatInput)} disabled={!chatInput.trim() || aiChatLoading}
-                style={{
-                  padding: '10px 14px', background: D.accent, border: 'none', borderRadius: 8,
-                  color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 14,
-                  opacity: !chatInput.trim() || aiChatLoading ? 0.4 : 1,
-                }}>↑</button>
-            </div>
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── DETAIL PANEL (right slide-in) ── */}
       {renderDetailPanel()}
