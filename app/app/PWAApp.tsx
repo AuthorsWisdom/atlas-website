@@ -90,16 +90,8 @@ export default function PWAApp() {
 
   const mono = "'JetBrains Mono', monospace"
 
-  if (authLoading) {
-    return (
-      <div style={{ background: '#080808', height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: mono, fontSize: 12, color: '#555' }}>Loading...</span>
-      </div>
-    )
-  }
-
   return (
-    <div style={{ background: '#080808', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ background: '#080808', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
 
       {/* Top bar */}
@@ -115,7 +107,7 @@ export default function PWAApp() {
               {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          {user ? (
+          {!authLoading && (user ? (
             <button onClick={signOut} style={{
               background: 'none', border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 4, padding: '3px 8px', color: '#666',
@@ -127,13 +119,50 @@ export default function PWAApp() {
               borderRadius: 4, padding: '3px 8px', color: '#4ade80',
               fontFamily: mono, fontSize: 9, cursor: 'pointer',
             }}>Sign in</button>
-          )}
+          ))}
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-        {tab === 'scanner' && (
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: 70 }}>
+        {/* Loading skeleton */}
+        {authLoading && (
+          <div style={{ padding: '16px 14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ width: 80, height: 16, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+              <div style={{ width: 40, height: 16, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+            </div>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ background: '#111', borderRadius: 10, padding: '16px 14px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+                    <div style={{ width: 48, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+                  </div>
+                  <div style={{ width: 60, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Sign in prompt for unauthenticated users (non-settings tabs) */}
+        {!authLoading && !user && tab !== 'settings' && (
+          <div style={{ padding: '60px 14px', textAlign: 'center' }}>
+            <div style={{ fontFamily: mono, fontSize: 28, color: '#4ade80', marginBottom: 16 }}>XATLAS</div>
+            <p style={{ fontFamily: mono, fontSize: 13, color: '#888', marginBottom: 24, lineHeight: 1.6 }}>
+              Sign in to access real-time conviction scores,<br />macro data, and your watchlist.
+            </p>
+            <button onClick={() => setShowAuth(true)} style={{
+              padding: '12px 32px', borderRadius: 8, border: 'none',
+              background: '#4ade80', color: '#052e16', fontFamily: mono,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>Sign in</button>
+          </div>
+        )}
+
+        {/* Authenticated content / settings tab always visible */}
+        {!authLoading && tab === 'scanner' && (
           <div style={{ padding: '16px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em' }}>SCANNER</span>
@@ -176,7 +205,7 @@ export default function PWAApp() {
           </div>
         )}
 
-        {tab === 'macro' && (
+        {!authLoading && tab === 'macro' && (
           <div style={{ padding: '16px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em' }}>MACRO</span>
@@ -217,7 +246,7 @@ export default function PWAApp() {
           </div>
         )}
 
-        {tab === 'watchlist' && (
+        {!authLoading && tab === 'watchlist' && (
           <div style={{ padding: '16px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em' }}>WATCHLIST</span>
@@ -249,7 +278,7 @@ export default function PWAApp() {
           </div>
         )}
 
-        {tab === 'settings' && (
+        {!authLoading && tab === 'settings' && (
           <div style={{ padding: '16px 14px' }}>
             <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.08em', display: 'block', marginBottom: 16 }}>SETTINGS</span>
 
@@ -317,11 +346,13 @@ export default function PWAApp() {
         )}
       </div>
 
-      {/* Tab bar */}
+      {/* Tab bar — fixed at bottom, always visible */}
       <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
         display: 'flex', justifyContent: 'space-around', alignItems: 'center',
         padding: '8px 0', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-        borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a', flexShrink: 0,
+        borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a',
+        zIndex: 50,
       }}>
         {([
           { id: 'scanner' as const, label: 'Scanner', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
