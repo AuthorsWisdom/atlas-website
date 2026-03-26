@@ -5,6 +5,7 @@ import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
 import AuthModal from '@/components/AuthModal'
 import StockChart from '@/components/StockChart'
+import { useLivePrices } from '@/hooks/useLivePrices'
 
 const BACKEND = 'https://web-production-e9e4b.up.railway.app'
 const FREE_WATCHLIST_LIMIT = 3
@@ -106,6 +107,7 @@ export default function PWAApp() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
+  const { quotes: liveQuotes, isLive, marketOpen, flashes } = useLivePrices(watchlist)
 
   const isPro = profile?.is_pro ?? false
 
@@ -292,8 +294,20 @@ export default function PWAApp() {
   const pad = isDesktop ? '24px 32px' : '16px 14px'
 
   // ── Ticker card (shared between scanner & watchlist mobile) ──
+  // Merge fetched + live quotes (live takes priority for price/change)
+  function getQuote(sym: string): QuoteData | undefined {
+    const fetched = quotes[sym]
+    const live = liveQuotes[sym]
+    if (!fetched && !live) return undefined
+    return {
+      ...(fetched ?? { symbol: sym, price: null, change_percent: null, conviction: 0, factors: [], squeeze_score: 0, options_flow_score: 0, macro_score: 0, regime: '', vix: null }),
+      ...(live?.price != null ? { price: live.price, change_percent: live.change_percent } : {}),
+    }
+  }
+
   function TickerCard({ sym, showRemove }: { sym: string; showRemove?: boolean }) {
-    const d = quotes[sym]
+    const d = getQuote(sym)
+    const flash = flashes[sym]
     const aiExpanded = expandedAI === sym
     const ai = aiData[sym]
     return (
@@ -307,7 +321,11 @@ export default function PWAApp() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 600, color: '#f0ede6' }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</div>
+              <div style={{
+                fontFamily: mono, fontSize: 20, fontWeight: 600,
+                color: flash === 'up' ? GREEN : flash === 'down' ? RED : '#f0ede6',
+                transition: 'color 0.3s',
+              }}>{d?.price != null ? `$${d.price.toFixed(2)}` : '—'}</div>
               {d?.change_percent != null && (
                 <div style={{ fontFamily: mono, fontSize: 15, color: d.change_percent >= 0 ? '#4ade80' : '#f87171' }}>
                   {d.change_percent >= 0 ? '+' : ''}{d.change_percent.toFixed(2)}%
@@ -458,7 +476,7 @@ export default function PWAApp() {
 
   // ── Ticker detail view ──
   function renderDetail(sym: string) {
-    const d = quotes[sym]
+    const d = getQuote(sym)
     const isCrypto = CRYPTO_SYMBOLS.has(sym)
     const ai = aiData[sym]
     if (!ai && isPro) fetchAI(sym)
@@ -740,7 +758,7 @@ export default function PWAApp() {
               </thead>
               <tbody>
                 {watchlist.map(sym => {
-                  const d = quotes[sym]
+                  const d = getQuote(sym)
                   return (
                     <tr key={sym} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
@@ -995,9 +1013,14 @@ export default function PWAApp() {
       <div style={{ flex: 1, marginLeft: isDesktop ? 220 : 0, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         {!isDesktop && (
           <div style={{ padding: '4px 16px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, paddingTop: 'env(safe-area-inset-top, 12px)' }}>
-            <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.15em' }}>XATLAS</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: '#f0ede6', letterSpacing: '0.15em' }}>XATLAS</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: mono, fontSize: 9, color: isLive ? GREEN : '#888' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isLive ? GREEN : '#888', animation: isLive ? 'pulse-dot 2s infinite' : 'none' }} />
+                {isLive ? (marketOpen ? 'LIVE' : 'AFTER HOURS') : 'DELAYED'}
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {lastUpdated && <span style={{ fontFamily: mono, fontSize: 8, color: '#444' }}>{lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
               {!authLoading && (user ? (
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '3px 8px', color: '#666', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>Sign out</button>
               ) : (
