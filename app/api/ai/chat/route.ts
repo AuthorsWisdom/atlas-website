@@ -129,7 +129,7 @@ Guidelines:
       model: gatewayModel,
       system: systemPrompt,
       messages: formatted,
-      maxTokens: 1024,
+      maxOutputTokens: 1024,
     })
 
     return NextResponse.json({
