@@ -313,7 +313,7 @@ export default function PWAApp() {
     const aiExpanded = expandedAI === sym
     const ai = aiData[sym]
     return (
-      <div style={card} {...hoverProps}>
+      <div className={flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : ''} style={card} {...hoverProps}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
           onClick={() => setDetailTicker(detailTicker === sym ? null : sym)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
