@@ -10,7 +10,6 @@ import OptionsFlowPanel from '@/components/OptionsFlowPanel'
 import OptionsIntelligence from '@/components/OptionsIntelligence'
 import { useLivePrices } from '@/hooks/useLivePrices'
 
-const BACKEND = 'https://atlas-backend-silent-log-2366.fly.dev'
 const FREE_WATCHLIST_LIMIT = 3
 
 const CRYPTO_SYMBOLS = new Set([
@@ -1140,18 +1139,39 @@ export default function PWAApp() {
       })
   }, [user])
 
-  // Load portfolio from Supabase
+  // Load portfolio + provider keys from Supabase
   useEffect(() => {
     if (!user) return
-    getSupabase().from('profiles').select('portfolio').eq('id', user.id).maybeSingle()
-      .then(({ data }) => { if (data?.portfolio) setPortfolio(data.portfolio) })
+    getSupabase().from('profiles').select('portfolio, ai_provider_keys').eq('id', user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { console.error('[persist] load error:', error.message); return }
+        if (Array.isArray(data?.portfolio) && data.portfolio.length > 0) {
+          setPortfolio(data.portfolio)
+          console.log('[persist] portfolio restored:', data.portfolio.length)
+        }
+        if (data?.ai_provider_keys && typeof data.ai_provider_keys === 'object') {
+          setProviderKeys(prev => ({ ...prev, ...data.ai_provider_keys }))
+          console.log('[persist] keys restored:', Object.keys(data.ai_provider_keys).filter(k => data.ai_provider_keys[k]).length)
+        }
+      })
   }, [user])
 
-  const savePortfolio = useCallback((positions: typeof portfolio) => {
+  const savePortfolio = useCallback(async (positions: typeof portfolio) => {
     setPortfolio(positions)
     if (!user) return
-    getSupabase().from('profiles').update({ portfolio: positions }).eq('id', user.id).then(() => {})
+    const { error } = await getSupabase().from('profiles').update({ portfolio: positions }).eq('id', user.id)
+    if (error) console.error('[portfolio] save error:', error.message)
+    else console.log('[portfolio] saved', positions.length, 'positions')
   }, [user])
+
+  const saveProviderKey = useCallback(async (provider: string, key: string) => {
+    const newKeys = { ...providerKeys, [provider]: key }
+    setProviderKeys(newKeys)
+    if (!user) return
+    const { error } = await getSupabase().from('profiles').update({ ai_provider_keys: newKeys }).eq('id', user.id)
+    if (error) console.error('[keys] save error:', error.message)
+    else console.log('[keys] saved:', provider)
+  }, [user, providerKeys])
 
   const addPortfolioPosition = useCallback(() => {
     const { symbol, shares, avgCost } = portfolioInput
@@ -1352,11 +1372,8 @@ export default function PWAApp() {
   const addToWatchlist = useCallback(async (s: string) => {
     if (watchlist.includes(s)) return
     if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
-    fetch(`${BACKEND}/stream/subscribe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: s }),
-    }).catch(() => {})
+    // Stream subscription happens server-side on next score fetch
+    fetch(`/api/score/${s}`, { headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' } }).catch(() => {})
     setWatchlist(prev => [...prev, s])
     fetchQuotes([s])
     // Immediately fetch score for new ticker — don't wait for 60s TTL cycle
@@ -1441,15 +1458,17 @@ export default function PWAApp() {
     setShowPortfolio(true)
     setPortfolioAnalysis({ loading: true, data: null })
     try {
-      const res = await fetch(`${BACKEND}/portfolio/analyze`, {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-User-ID': user?.id ?? '',
           'X-Is-Pro': isPro ? 'true' : 'false',
-          'X-Has-BYOK': 'false',
         },
-        body: JSON.stringify({ symbols: watchlist, regime: macro?.regime ?? 'unknown' }),
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: `Analyze my portfolio of ${watchlist.join(', ')} in the context of ${macro?.regime ?? 'current'} macro regime. For each symbol: conviction level, key risk, and whether it aligns with macro conditions. Give a brief overall portfolio assessment. Max 300 words.` }],
+          context: `Portfolio symbols: ${watchlist.join(', ')}. Macro regime: ${macro?.regime ?? 'unknown'}. Risk-on score: ${macro?.risk_on_score ?? 'N/A'}/100. VIX: ${macro?.vix ?? 'N/A'}.`,
+        }),
       })
       const data = await res.json()
       setPortfolioAnalysis({ loading: false, data })
@@ -2126,7 +2145,7 @@ export default function PWAApp() {
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: PROVIDER_COLORS[pid] }} />
                     <span style={{ fontSize: 12, fontFamily: D.sans, fontWeight: 700, color: PROVIDER_COLORS[pid] }}>{name}</span>
                   </div>
-                  <input type="password" value={providerKeys[pid] || ''} onChange={e => setProviderKeys(prev => ({ ...prev, [pid]: e.target.value }))}
+                  <input type="password" value={providerKeys[pid] || ''} onChange={e => saveProviderKey(pid, e.target.value)}
                     placeholder={`${name} API key`} style={{ width: '100%', padding: '8px 12px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: D.mono, outline: 'none', boxSizing: 'border-box' as const }} />
                   <div style={{ fontSize: 10, color: D.muted, marginTop: 3, fontFamily: D.sans }}>
                     Files: {{ anthropic: 'Images + PDFs', openai: 'Images only', xai: 'Images only', google: 'Images + PDFs + more', mistral: 'Images (Pixtral only)' }[pid]}
