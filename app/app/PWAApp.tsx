@@ -56,6 +56,38 @@ interface PortfolioData {
 }
 type Tab = 'scanner' | 'macro' | 'watchlist' | 'news' | 'settings'
 
+// ── Layout System ──
+const FONT_SIZES = {
+  small:  { base: 11, price: 16, symbol: 14, label: 10 },
+  medium: { base: 13, price: 20, symbol: 16, label: 11 },
+  large:  { base: 15, price: 24, symbol: 18, label: 13 },
+} as const
+
+const FONT_FAMILIES = {
+  mono: { primary: "'JetBrains Mono', monospace", secondary: "'DM Sans', sans-serif" },
+  sans: { primary: "'DM Sans', sans-serif", secondary: "'DM Sans', sans-serif" },
+} as const
+
+const DETAIL_PANELS = [
+  { id: 'chart',     label: 'Price Chart',        defaultOrder: 0 },
+  { id: 'scores',    label: 'Conviction Scores',  defaultOrder: 1 },
+  { id: 'options',   label: 'Options Flow',       defaultOrder: 2 },
+  { id: 'ai',        label: 'AI Analysis',        defaultOrder: 3 },
+  { id: 'news',      label: 'Ticker News',        defaultOrder: 4 },
+] as const
+
+interface LayoutConfig {
+  panels: { id: string; visible: boolean; order: number }[]
+  fontSize: 'small' | 'medium' | 'large'
+  fontFamily: 'mono' | 'sans'
+}
+
+const DEFAULT_LAYOUT: LayoutConfig = {
+  fontSize: 'medium',
+  fontFamily: 'mono',
+  panels: DETAIL_PANELS.map(p => ({ id: p.id, visible: true, order: p.defaultOrder })),
+}
+
 const MACRO_INFO: Record<string, { title: string; desc: string; getStatus: (v: number) => string }> = {
   fed_rate: { title: 'Fed Funds Rate', desc: "The Federal Reserve's benchmark interest rate. Higher rates increase borrowing costs and typically pressure equity valuations.", getStatus: v => v > 5 ? 'Restrictive' : v > 3 ? 'Neutral' : 'Accommodative' },
   yield_10y: { title: '10Y Yield', desc: 'Rising yields increase the discount rate for equities and compete with stocks for capital.', getStatus: v => v > 4.5 ? 'Elevated' : v > 3 ? 'Moderate' : 'Low' },
@@ -803,6 +835,116 @@ const WatchlistSearch = memo(function WatchlistSearch({ onAdd, isPro, watchlistL
   )
 })
 
+// ── Layout Editor ──
+function LayoutEditor({ layout, onChange }: { layout: LayoutConfig; onChange: (l: LayoutConfig) => void }) {
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }
+  return (
+    <div style={{ background: D.surface, borderRadius: 12, padding: 20, border: `1px solid ${D.border}` }}>
+      {/* Font Size */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={labelStyle}>Font Size</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(['small', 'medium', 'large'] as const).map(size => (
+            <button key={size} onClick={() => onChange({ ...layout, fontSize: size })}
+              style={{
+                padding: '8px 16px', borderRadius: 6, border: 'none',
+                background: layout.fontSize === size ? D.accent : D.border,
+                color: layout.fontSize === size ? '#000' : D.muted,
+                fontFamily: D.sans, fontWeight: 700, fontSize: 12,
+                cursor: 'pointer', textTransform: 'capitalize',
+              }}>{size}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Font Style */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={labelStyle}>Font Style</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {([{ id: 'mono' as const, label: 'Monospace' }, { id: 'sans' as const, label: 'Sans-serif' }]).map(f => (
+            <button key={f.id} onClick={() => onChange({ ...layout, fontFamily: f.id })}
+              style={{
+                padding: '8px 16px', borderRadius: 6, border: 'none',
+                background: layout.fontFamily === f.id ? D.accent : D.border,
+                color: layout.fontFamily === f.id ? '#000' : D.muted,
+                fontFamily: f.id === 'mono' ? D.mono : D.sans,
+                fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              }}>{f.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Panel Visibility + Order */}
+      <div>
+        <div style={labelStyle}>Detail Panels — Toggle &amp; Reorder</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[...layout.panels].sort((a, b) => a.order - b.order).map((panel, idx) => {
+            const def = DETAIL_PANELS.find(p => p.id === panel.id)
+            if (!def) return null
+            return (
+              <div key={panel.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px', background: D.bg, borderRadius: 8,
+                border: `1px solid ${panel.visible ? `${D.accent}30` : D.border}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div onClick={() => {
+                    const updated = layout.panels.map(p => p.id === panel.id ? { ...p, visible: !p.visible } : p)
+                    onChange({ ...layout, panels: updated })
+                  }} style={{
+                    width: 36, height: 20, borderRadius: 10, cursor: 'pointer',
+                    background: panel.visible ? D.accent : D.border,
+                    position: 'relative', transition: 'background 0.2s',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 2, left: panel.visible ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                    }} />
+                  </div>
+                  <span style={{ fontFamily: D.sans, fontSize: 13, color: panel.visible ? D.text : D.muted, fontWeight: 600 }}>
+                    {def.label}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {idx > 0 && (
+                    <button onClick={() => {
+                      const sorted = [...layout.panels].sort((a, b) => a.order - b.order)
+                      const prev = sorted[idx - 1]
+                      const updated = layout.panels.map(p => {
+                        if (p.id === panel.id) return { ...p, order: prev.order }
+                        if (p.id === prev.id) return { ...p, order: panel.order }
+                        return p
+                      })
+                      onChange({ ...layout, panels: updated })
+                    }} style={{ background: D.border, border: 'none', color: D.muted, borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>↑</button>
+                  )}
+                  {idx < layout.panels.length - 1 && (
+                    <button onClick={() => {
+                      const sorted = [...layout.panels].sort((a, b) => a.order - b.order)
+                      const next = sorted[idx + 1]
+                      const updated = layout.panels.map(p => {
+                        if (p.id === panel.id) return { ...p, order: next.order }
+                        if (p.id === next.id) return { ...p, order: panel.order }
+                        return p
+                      })
+                      onChange({ ...layout, panels: updated })
+                    }} style={{ background: D.border, border: 'none', color: D.muted, borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>↓</button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <button onClick={() => onChange(DEFAULT_LAYOUT)}
+        style={{ marginTop: 16, width: '100%', padding: 10, background: 'none', border: `1px solid ${D.border}`, borderRadius: 8, color: D.muted, fontFamily: D.sans, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+        Reset to Default
+      </button>
+    </div>
+  )
+}
+
 // ── Main App ──
 export default function PWAApp() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
@@ -835,6 +977,8 @@ export default function PWAApp() {
   const [preferredProvider, setPreferredProvider] = useState('anthropic')
   const [scores, setScores] = useState<Record<string, { conviction: number; squeeze_score: number; options_flow_score: number; macro_score: number; tier: string }>>({})
   const scoreTimestamps = useRef<Record<string, number>>({})
+  const [layout, setLayout] = useState<LayoutConfig>(DEFAULT_LAYOUT)
+  const saveLayoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const isDesktop = useIsDesktop()
   const isMobile = !isDesktop
   const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
@@ -940,6 +1084,23 @@ export default function PWAApp() {
     if (!user) { setWatchlist([]); return }
     getSupabase().from('watchlist').select('symbol').eq('user_id', user.id).order('created_at')
       .then(({ data }) => { if (data) setWatchlist(data.map((r: { symbol: string }) => r.symbol)) }, () => {})
+  }, [user])
+
+  // Load layout config from Supabase
+  useEffect(() => {
+    if (!user) return
+    getSupabase().from('profiles').select('layout_config').eq('id', user.id).single()
+      .then(({ data }) => { if (data?.layout_config) setLayout(data.layout_config) })
+  }, [user])
+
+  const handleLayoutChange = useCallback((newLayout: LayoutConfig) => {
+    setLayout(newLayout)
+    if (!user) return
+    clearTimeout(saveLayoutRef.current)
+    saveLayoutRef.current = setTimeout(() => {
+      getSupabase().from('profiles').update({ layout_config: newLayout }).eq('id', user.id)
+        .then(() => console.log('[layout] saved to Supabase'))
+    }, 1000)
   }, [user])
 
   useEffect(() => {
@@ -1777,6 +1938,12 @@ export default function PWAApp() {
               </div>
             )}
 
+            {/* Layout Editor — full width */}
+            <div style={{ ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
+              <div style={labelStyle}>Dashboard Layout</div>
+              <LayoutEditor layout={layout} onChange={handleLayoutChange} />
+            </div>
+
             {/* Legal — full width */}
             <div style={{ ...cardStyle, ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
               <div style={labelStyle}>Legal</div>
@@ -1851,92 +2018,103 @@ export default function PWAApp() {
             }}>✕</button>
           </div>
 
-          {/* Panel content */}
+          {/* Panel content — ordered by layout config */}
           <div style={{ padding: '20px 24px', flex: 1 }}>
-            {/* Chart */}
-            <div style={{ marginBottom: 20 }}>
-              <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
-            </div>
+            {[...layout.panels].sort((a, b) => a.order - b.order).map(panel => {
+              if (!panel.visible) return null
 
-            {/* Conviction score */}
-            <div style={{
-              background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px',
-              display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16,
-            }}>
-              <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
-                <svg width="56" height="56" viewBox="0 0 56 56">
-                  <circle cx="28" cy="28" r="24" fill="none" stroke={D.border} strokeWidth="4" />
-                  <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(scores[sym]?.conviction ?? 0)} strokeWidth="4"
-                    strokeDasharray={`${(scores[sym]?.conviction ?? 0) * 1.508} 999`}
-                    strokeLinecap="round" transform="rotate(-90 28 28)" />
-                </svg>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: D.mono, fontSize: 16, fontWeight: 700, color: tierColor(scores[sym]?.conviction ?? 0) }}>
-                  {scores[sym]?.conviction ?? '—'}
+              if (panel.id === 'chart') return (
+                <div key="chart" style={{ marginBottom: 20 }}>
+                  <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
                 </div>
-              </div>
-              <div>
-                <div style={{ fontFamily: D.sans, fontSize: 14, fontWeight: 700, color: D.text }}>
-                  {(scores[sym]?.conviction ?? 0) >= 75 ? 'STRONG' : (scores[sym]?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
-                </div>
-                <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginTop: 2 }}>Conviction Score</div>
-              </div>
-            </div>
+              )
 
-            {/* Score breakdown — Pro */}
-            {isPro && scores[sym] ? (
-              <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
-                <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Score Breakdown</div>
-                {[
-                  { l: 'Squeeze', v: scores[sym].squeeze_score },
-                  { l: 'Options Flow', v: scores[sym].options_flow_score },
-                  { l: 'Macro', v: scores[sym].macro_score },
-                ].map(b => (
-                  <div key={b.l} style={{ marginBottom: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>{b.l}</span>
-                      <span style={{ fontFamily: D.mono, fontSize: 12, color: tierColor(b.v ?? 50) }}>{b.v ?? '—'}</span>
+              if (panel.id === 'scores') return (
+                <React.Fragment key="scores">
+                  {/* Conviction score ring */}
+                  <div style={{
+                    background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px',
+                    display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16,
+                  }}>
+                    <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+                      <svg width="56" height="56" viewBox="0 0 56 56">
+                        <circle cx="28" cy="28" r="24" fill="none" stroke={D.border} strokeWidth="4" />
+                        <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(scores[sym]?.conviction ?? 0)} strokeWidth="4"
+                          strokeDasharray={`${(scores[sym]?.conviction ?? 0) * 1.508} 999`}
+                          strokeLinecap="round" transform="rotate(-90 28 28)" />
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: D.mono, fontSize: 16, fontWeight: 700, color: tierColor(scores[sym]?.conviction ?? 0) }}>
+                        {scores[sym]?.conviction ?? '—'}
+                      </div>
                     </div>
-                    <div style={{ height: 4, borderRadius: 2, background: D.border, overflow: 'hidden' }}>
-                      <div style={{ width: `${b.v ?? 50}%`, height: '100%', borderRadius: 2, background: tierColor(b.v ?? 50), transition: 'width 0.3s' }} />
+                    <div>
+                      <div style={{ fontFamily: D.sans, fontSize: 14, fontWeight: 700, color: D.text }}>
+                        {(scores[sym]?.conviction ?? 0) >= 75 ? 'STRONG' : (scores[sym]?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
+                      </div>
+                      <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginTop: 2 }}>Conviction Score</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : !isPro ? (
-              <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', position: 'relative', marginBottom: 16 }}>
-                <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
-                  <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, letterSpacing: '1px', marginBottom: 12 }}>SCORE BREAKDOWN</div>
-                  {['Squeeze', 'Options Flow', 'Macro'].map(l => (
-                    <div key={l} style={{ marginBottom: 8 }}>
-                      <div style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, marginBottom: 4 }}>{l}</div>
-                      <div style={{ height: 4, borderRadius: 2, background: D.border }} />
+                  {/* Score breakdown */}
+                  {isPro && scores[sym] ? (
+                    <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
+                      <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Score Breakdown</div>
+                      {[
+                        { l: 'Squeeze', v: scores[sym].squeeze_score },
+                        { l: 'Options Flow', v: scores[sym].options_flow_score },
+                        { l: 'Macro', v: scores[sym].macro_score },
+                      ].map(b => (
+                        <div key={b.l} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>{b.l}</span>
+                            <span style={{ fontFamily: D.mono, fontSize: 12, color: tierColor(b.v ?? 50) }}>{b.v ?? '—'}</span>
+                          </div>
+                          <div style={{ height: 4, borderRadius: 2, background: D.border, overflow: 'hidden' }}>
+                            <div style={{ width: `${b.v ?? 50}%`, height: '100%', borderRadius: 2, background: tierColor(b.v ?? 50), transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                  <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
-                </div>
-              </div>
-            ) : null}
+                  ) : !isPro ? (
+                    <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', position: 'relative', marginBottom: 16 }}>
+                      <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
+                        <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, letterSpacing: '1px', marginBottom: 12 }}>SCORE BREAKDOWN</div>
+                        {['Squeeze', 'Options Flow', 'Macro'].map(l => (
+                          <div key={l} style={{ marginBottom: 8 }}>
+                            <div style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, marginBottom: 4 }}>{l}</div>
+                            <div style={{ height: 4, borderRadius: 2, background: D.border }} />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                        <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
+                      </div>
+                    </div>
+                  ) : null}
+                </React.Fragment>
+              )
 
-            {/* Options panels (stocks only) */}
-            {!isCrypto && (
-              <>
-                <div style={{ marginBottom: 16 }}>
-                  <OptionsFlowPanel symbol={sym} isPro={isPro} />
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                  <OptionsIntelligence symbol={sym} isPro={isPro} />
-                </div>
-              </>
-            )}
+              if (panel.id === 'options') return !isCrypto ? (
+                <React.Fragment key="options">
+                  <div style={{ marginBottom: 16 }}>
+                    <OptionsFlowPanel symbol={sym} isPro={isPro} />
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <OptionsIntelligence symbol={sym} isPro={isPro} />
+                  </div>
+                </React.Fragment>
+              ) : null
 
-            {/* AI Analysis */}
-            <AIAnalysisPanel symbol={sym} isPro={isPro} user={user} scores={scores} aiData={aiData} />
+              if (panel.id === 'ai') return (
+                <AIAnalysisPanel key="ai" symbol={sym} isPro={isPro} user={user} scores={scores} aiData={aiData} />
+              )
 
-            {/* Ticker-specific news */}
-            <TickerNews symbol={sym} />
+              if (panel.id === 'news') return (
+                <TickerNews key="news" symbol={sym} />
+              )
+
+              return null
+            })}
           </div>
         </div>
       </>
@@ -1957,7 +2135,17 @@ export default function PWAApp() {
 
   return (
     <DashboardErrorBoundary>
-    <div style={{ background: D.bg, minHeight: '100dvh', color: D.text }}>
+    <div style={{
+      background: D.bg, minHeight: '100dvh', color: D.text,
+      '--font-size-base': FONT_SIZES[layout.fontSize].base + 'px',
+      '--font-size-price': FONT_SIZES[layout.fontSize].price + 'px',
+      '--font-size-symbol': FONT_SIZES[layout.fontSize].symbol + 'px',
+      '--font-size-label': FONT_SIZES[layout.fontSize].label + 'px',
+      '--font-family-primary': FONT_FAMILIES[layout.fontFamily].primary,
+      '--font-family-secondary': FONT_FAMILIES[layout.fontFamily].secondary,
+      fontSize: FONT_SIZES[layout.fontSize].base,
+      fontFamily: FONT_FAMILIES[layout.fontFamily].primary,
+    } as React.CSSProperties}>
       {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
 
       {/* ── TOP BAR (48px, fixed, full width) ── */}
