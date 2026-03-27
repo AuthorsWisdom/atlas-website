@@ -61,6 +61,7 @@ export default function AccountClient() {
   const [keyStatus, setKeyStatus] = useState<{ anthropic: boolean; openai: boolean; preferred: string }>({ anthropic: false, openai: false, preferred: 'anthropic' })
   const [showAnthropicKey, setShowAnthropicKey] = useState(false)
   const [showOpenaiKey, setShowOpenaiKey] = useState(false)
+  const [pageError, setPageError] = useState('')
 
   if (authLoading) {
     return (
@@ -140,10 +141,12 @@ export default function AccountClient() {
   // Load key status on mount
   useEffect(() => {
     if (!user) return
-    fetch(`https://atlas-backend-silent-log-2366.fly.dev/keys/status/${user.id}`)
+    fetch(`https://atlas-backend-silent-log-2366.fly.dev/keys/status/${user.id}`, {
+      signal: AbortSignal.timeout(8000),
+    })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setKeyStatus(d) })
-      .catch(() => {})
+      .catch(e => { console.error('Key status fetch failed:', e); setPageError('') })
   }, [user])
 
   async function handleSaveKey(provider: 'anthropic' | 'openai') {
@@ -191,9 +194,15 @@ export default function AccountClient() {
         <h1 style={{ fontFamily: display, fontSize: '1.6rem', fontWeight: 700, color: '#f0ede6', marginBottom: 4 }}>Account</h1>
         <p style={{ fontFamily: mono, fontSize: 12, color: '#555', marginBottom: 24 }}>Manage your XAtlas account and subscription.</p>
 
+        {pageError && (
+          <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+            <p style={{ fontFamily: mono, fontSize: 11, color: '#f87171' }}>{pageError}</p>
+          </div>
+        )}
+
         {/* Account info */}
         <Section title="Account">
-          <Row label="Email" value={user.email} />
+          <Row label="Email" value={user.email ?? '—'} />
           <Row label="User ID" value={user.id.slice(0, 8) + '...'} />
           <button onClick={signOut} style={{
             width: '100%', padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',

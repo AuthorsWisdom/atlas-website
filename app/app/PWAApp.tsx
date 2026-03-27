@@ -852,15 +852,22 @@ export default function PWAApp() {
 
   const fetchScore = useCallback(async (symbol: string, retries = 2) => {
     const now = Date.now()
-    if (now - (scoreTimestamps.current[symbol] ?? 0) < 60000) return
+    if (now - (scoreTimestamps.current[symbol] ?? 0) < 60000) {
+      console.log(`[fetchScore] ${symbol} skipped — TTL not expired`)
+      return
+    }
     scoreTimestamps.current[symbol] = now
+    console.log(`[fetchScore] ${symbol} isPro=${isPro} userId=${user?.id?.slice(0, 8)} retries=${retries}`)
     try {
-      const res = await fetch(`${BACKEND}/score/${symbol}`, {
+      const url = `${BACKEND}/score/${symbol}`
+      const res = await fetch(url, {
         headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' },
         signal: AbortSignal.timeout(10000),
       })
+      console.log(`[fetchScore] ${symbol} status=${res.status}`)
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
+      console.log(`[fetchScore] ${symbol} conviction=${data.conviction} tier=${data.tier}`)
       if (data.conviction != null) {
         const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
         setScores(prev => ({
@@ -874,7 +881,8 @@ export default function PWAApp() {
           },
         }))
       }
-    } catch {
+    } catch (e) {
+      console.error(`[fetchScore] ${symbol} error:`, e)
       // Retry on failure — clear TTL so retry can proceed
       delete scoreTimestamps.current[symbol]
       if (retries > 0) {
