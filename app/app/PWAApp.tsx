@@ -465,25 +465,24 @@ function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
   const [analysis, setAnalysis] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const fetchedRef = useRef('')
+  const [refreshCount, setRefreshCount] = useState(0)
 
   useEffect(() => {
-    if (!isPro || !symbol || fetchedRef.current === symbol) return
-    // Wait for score data before calling AI — otherwise context is empty
-    const s = scores[symbol]
-    if (!s || s.conviction === undefined) return
-    fetchedRef.current = symbol
+    if (!isPro || !symbol) return
     setLoading(true)
     setError('')
     setAnalysis('')
     const controller = new AbortController()
     const t = setTimeout(() => controller.abort(), 30000)
-    const context = `${symbol} conviction: ${s.conviction}/100, tier: ${s.tier}, squeeze_score: ${s.squeeze_score}, options_flow_score: ${s.options_flow_score}, macro_score: ${s.macro_score}`
+    const s = scores[symbol]
+    const context = s
+      ? `${symbol} conviction: ${s.conviction}/100, tier: ${s.tier}, squeeze_score: ${s.squeeze_score}, options_flow_score: ${s.options_flow_score}, macro_score: ${s.macro_score}`
+      : `${symbol} — score data loading`
     fetch(`/api/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Is-Pro': 'true', 'X-User-ID': user?.id ?? '' },
       body: JSON.stringify({
-        messages: [{ role: 'user', content: `Give a concise 3-4 sentence analysis of ${symbol}: (1) current technical setup and momentum, (2) key risk/reward factors, (3) actionable outlook. Reference the conviction score of ${s.conviction}/100 and current macro regime. Max 120 words.` }],
+        messages: [{ role: 'user', content: `Give a concise 3-4 sentence analysis of ${symbol}: (1) current technical setup and momentum, (2) key risk/reward factors, (3) actionable outlook.${s ? ` Reference the conviction score of ${s.conviction}/100 and current macro regime.` : ''} Max 120 words.` }],
         context,
         symbol,
       }),
@@ -494,7 +493,7 @@ function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
       .catch(() => { setError('Analysis unavailable. Try again.'); clearTimeout(t) })
       .finally(() => setLoading(false))
     return () => { clearTimeout(t); controller.abort() }
-  }, [symbol, isPro, user?.id, scores])
+  }, [symbol, isPro, user?.id, refreshCount])
 
   const ai = aiData[symbol]
   const s = scores[symbol]
@@ -521,7 +520,7 @@ function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
     <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ fontSize: 11, color: D.accent, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 1 }}>AI Analysis</div>
-        <button onClick={() => { fetchedRef.current = ''; setAnalysis(''); setLoading(true); fetchedRef.current = '' }} disabled={loading}
+        <button onClick={() => setRefreshCount(c => c + 1)} disabled={loading}
           style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 11, fontFamily: D.sans }}>
           {loading ? '...' : 'Refresh'}
         </button>
