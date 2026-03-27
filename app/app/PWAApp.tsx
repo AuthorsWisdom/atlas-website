@@ -1014,6 +1014,8 @@ export default function PWAApp() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [councilResult, setCouncilResult] = useState<any>(null)
   const [providerKeys, setProviderKeys] = useState<Record<string, string>>({})
+  const [councilAttachments, setCouncilAttachments] = useState<Array<{ name: string; mediaType: string; data: string; kind: 'image' | 'document'; preview?: string }>>([])
+  const councilFileRef = useRef<HTMLInputElement>(null)
   const isDesktop = useIsDesktop()
   const isMobile = !isDesktop
   const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
@@ -2126,6 +2128,9 @@ export default function PWAApp() {
                   </div>
                   <input type="password" value={providerKeys[pid] || ''} onChange={e => setProviderKeys(prev => ({ ...prev, [pid]: e.target.value }))}
                     placeholder={`${name} API key`} style={{ width: '100%', padding: '8px 12px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: D.mono, outline: 'none', boxSizing: 'border-box' as const }} />
+                  <div style={{ fontSize: 10, color: D.muted, marginTop: 3, fontFamily: D.sans }}>
+                    Files: {{ anthropic: 'Images + PDFs', openai: 'Images only', xai: 'Images only', google: 'Images + PDFs + more', mistral: 'Images (Pixtral only)' }[pid]}
+                  </div>
                 </div>
               ))}
             </div>
@@ -2537,9 +2542,11 @@ export default function PWAApp() {
         const buildMD = () => ({ conviction: scores[sym] || {}, options: {}, gex: {}, iv: {}, macro: {}, max_pain: {}, quote: liveQuotes[sym] || {} })
 
         const sendToAll = async () => {
-          if (!councilQuestion.trim() || councilLoading || activeProviders.length === 0) return
-          const question = councilQuestion.trim()
+          if ((!councilQuestion.trim() && councilAttachments.length === 0) || councilLoading || activeProviders.length === 0) return
+          const question = councilQuestion.trim() || '(see attached file)'
+          const currentAtts = [...councilAttachments]
           setCouncilQuestion('')
+          setCouncilAttachments([])
           setCouncilLoading(true)
           const md = buildMD()
 
@@ -2556,7 +2563,7 @@ export default function PWAApp() {
             try {
               const res = await fetch('/api/council/single', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol: sym, question, market_data: md, provider: pid, api_key: key, model, user_id: user?.id ?? '' }),
+                body: JSON.stringify({ symbol: sym, question, market_data: md, provider: pid, api_key: key, model, user_id: user?.id ?? '', attachments: currentAtts.map(a => ({ name: a.name, media_type: a.mediaType, data: a.data, kind: a.kind })) }),
               })
               const data = await res.json()
               const text = data?.result?.response ?? data?.result?.error ?? `Error ${res.status}`
@@ -2652,16 +2659,52 @@ export default function PWAApp() {
                 ))}
                 <span style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, alignSelf: 'center', marginLeft: 4 }}>sends to all</span>
               </div>
+              {/* Attachment previews */}
+              {councilAttachments.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                  {councilAttachments.map((att, idx) => (
+                    <div key={idx} style={{ position: 'relative', display: 'inline-flex' }}>
+                      {att.kind === 'image' && att.preview ? (
+                        <img src={att.preview} alt={att.name} style={{ height: 48, width: 48, objectFit: 'cover', borderRadius: 6, border: `1px solid ${D.border}` }} />
+                      ) : (
+                        <div style={{ height: 48, width: 48, borderRadius: 6, background: D.surface, border: `1px solid ${D.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 16 }}>📄</span>
+                          <span style={{ fontSize: 7, color: D.muted, fontFamily: D.sans, maxWidth: 40, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                        </div>
+                      )}
+                      <button onClick={() => { const a = councilAttachments[idx]; if (a.preview) URL.revokeObjectURL(a.preview); setCouncilAttachments(prev => prev.filter((_, i) => i !== idx)) }}
+                        style={{ position: 'absolute', top: -5, right: -5, width: 14, height: 14, borderRadius: '50%', background: D.red, border: 'none', color: '#fff', fontSize: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => councilFileRef.current?.click()} title="Attach image or PDF" style={{ padding: '10px', borderRadius: 10, border: `1px solid ${D.border}`, background: D.surface, color: councilAttachments.length > 0 ? D.accent : D.muted, cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>
+                  📎{councilAttachments.length > 0 && <span style={{ fontSize: 9, marginLeft: 2, fontWeight: 700, color: D.accent }}>{councilAttachments.length}</span>}
+                </button>
+                <input ref={councilFileRef} type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" style={{ display: 'none' }}
+                  onChange={async e => {
+                    const files = e.target.files; if (!files) return
+                    const newAtts: typeof councilAttachments = []
+                    for (const f of Array.from(files)) {
+                      if (f.size > 5 * 1024 * 1024) continue
+                      const kind = f.type.startsWith('image/') ? 'image' as const : 'document' as const
+                      const b64 = await new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r((fr.result as string).split(',')[1]); fr.readAsDataURL(f) })
+                      newAtts.push({ name: f.name, mediaType: f.type, data: b64, kind, preview: kind === 'image' ? URL.createObjectURL(f) : undefined })
+                    }
+                    setCouncilAttachments(prev => [...prev, ...newAtts].slice(0, 5))
+                    e.target.value = ''
+                  }} />
                 <input value={councilQuestion} onChange={e => setCouncilQuestion(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendToAll() } }}
-                  placeholder={`Ask all ${activeProviders.length} models about ${sym}...`} disabled={councilLoading}
+                  placeholder={councilAttachments.length > 0 ? `Message about ${councilAttachments.length} file(s)...` : `Ask all ${activeProviders.length} models about ${sym}...`} disabled={councilLoading}
                   style={{ flex: 1, padding: '10px 14px', background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, color: D.text, fontSize: 13, fontFamily: D.sans, outline: 'none' }} />
-                <button onClick={sendToAll} disabled={councilLoading || !councilQuestion.trim()}
+                <button onClick={sendToAll} disabled={councilLoading || (!councilQuestion.trim() && councilAttachments.length === 0)}
                   style={{ padding: '0 18px', borderRadius: 10, border: 'none', background: councilLoading ? D.border : D.accent, color: councilLoading ? D.muted : '#000', fontFamily: D.sans, fontWeight: 800, fontSize: 16, cursor: councilLoading ? 'not-allowed' : 'pointer' }}>
                   {councilLoading ? '...' : '↑'}
                 </button>
               </div>
+              <div style={{ fontSize: 9, color: '#2A3050', fontFamily: D.sans, marginTop: 4, textAlign: 'center' }}>JPEG · PNG · GIF · WEBP · PDF · max 5MB · max 5 files</div>
             </div>
           </div>
         )

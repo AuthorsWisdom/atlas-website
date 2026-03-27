@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 const RAILWAY = process.env.FLY_URL || 'https://atlas-backend-silent-log-2366.fly.dev'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 30
+export const maxDuration = 45
 
 export async function POST(request: Request) {
   try {
