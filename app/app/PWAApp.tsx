@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
 import AuthModal from '@/components/AuthModal'
-import StockChart from '@/components/StockChart'
+import ApexStockChart from '@/components/ApexStockChart'
 import OptionsFlowPanel from '@/components/OptionsFlowPanel'
 import OptionsIntelligence from '@/components/OptionsIntelligence'
 import { useLivePrices } from '@/hooks/useLivePrices'
@@ -87,6 +87,28 @@ const DEFAULT_LAYOUT: LayoutConfig = {
   fontFamily: 'mono',
   panels: DETAIL_PANELS.map(p => ({ id: p.id, visible: true, order: p.defaultOrder })),
 }
+
+interface Workspace {
+  id: string
+  name: string
+  layout: LayoutConfig
+}
+
+const DEFAULT_WORKSPACES: Workspace[] = [
+  { id: 'default', name: 'Default', layout: DEFAULT_LAYOUT },
+  {
+    id: 'chart_focus', name: 'Chart',
+    layout: { ...DEFAULT_LAYOUT, panels: DEFAULT_LAYOUT.panels.map(p => ({ ...p, visible: ['chart', 'scores'].includes(p.id) })) },
+  },
+  {
+    id: 'research', name: 'Research',
+    layout: { ...DEFAULT_LAYOUT, panels: DEFAULT_LAYOUT.panels.map(p => ({ ...p, visible: ['chart', 'scores', 'ai', 'news'].includes(p.id) })) },
+  },
+  {
+    id: 'options_focus', name: 'Options',
+    layout: { ...DEFAULT_LAYOUT, panels: DEFAULT_LAYOUT.panels.map(p => ({ ...p, visible: ['chart', 'options', 'scores'].includes(p.id) })) },
+  },
+]
 
 const MACRO_INFO: Record<string, { title: string; desc: string; getStatus: (v: number) => string }> = {
   fed_rate: { title: 'Fed Funds Rate', desc: "The Federal Reserve's benchmark interest rate. Higher rates increase borrowing costs and typically pressure equity valuations.", getStatus: v => v > 5 ? 'Restrictive' : v > 3 ? 'Neutral' : 'Accommodative' },
@@ -841,7 +863,7 @@ function LayoutEditor({ layout, onChange }: { layout: LayoutConfig; onChange: (l
   return (
     <div style={{ background: D.surface, borderRadius: 12, padding: 20, border: `1px solid ${D.border}` }}>
       {/* Font Size */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 20 }}>
         <div style={labelStyle}>Font Size</div>
         <div style={{ display: 'flex', gap: 8 }}>
           {(['small', 'medium', 'large'] as const).map(size => (
@@ -858,7 +880,7 @@ function LayoutEditor({ layout, onChange }: { layout: LayoutConfig; onChange: (l
       </div>
 
       {/* Font Style */}
-      <div style={{ marginBottom: 24 }}>
+      <div>
         <div style={labelStyle}>Font Style</div>
         <div style={{ display: 'flex', gap: 8 }}>
           {([{ id: 'mono' as const, label: 'Monospace' }, { id: 'sans' as const, label: 'Sans-serif' }]).map(f => (
@@ -873,74 +895,6 @@ function LayoutEditor({ layout, onChange }: { layout: LayoutConfig; onChange: (l
           ))}
         </div>
       </div>
-
-      {/* Panel Visibility + Order */}
-      <div>
-        <div style={labelStyle}>Detail Panels — Toggle &amp; Reorder</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[...layout.panels].sort((a, b) => a.order - b.order).map((panel, idx) => {
-            const def = DETAIL_PANELS.find(p => p.id === panel.id)
-            if (!def) return null
-            return (
-              <div key={panel.id} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 14px', background: D.bg, borderRadius: 8,
-                border: `1px solid ${panel.visible ? `${D.accent}30` : D.border}`,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div onClick={() => {
-                    const updated = layout.panels.map(p => p.id === panel.id ? { ...p, visible: !p.visible } : p)
-                    onChange({ ...layout, panels: updated })
-                  }} style={{
-                    width: 36, height: 20, borderRadius: 10, cursor: 'pointer',
-                    background: panel.visible ? D.accent : D.border,
-                    position: 'relative', transition: 'background 0.2s',
-                  }}>
-                    <div style={{
-                      position: 'absolute', top: 2, left: panel.visible ? 18 : 2,
-                      width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
-                    }} />
-                  </div>
-                  <span style={{ fontFamily: D.sans, fontSize: 13, color: panel.visible ? D.text : D.muted, fontWeight: 600 }}>
-                    {def.label}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {idx > 0 && (
-                    <button onClick={() => {
-                      const sorted = [...layout.panels].sort((a, b) => a.order - b.order)
-                      const prev = sorted[idx - 1]
-                      const updated = layout.panels.map(p => {
-                        if (p.id === panel.id) return { ...p, order: prev.order }
-                        if (p.id === prev.id) return { ...p, order: panel.order }
-                        return p
-                      })
-                      onChange({ ...layout, panels: updated })
-                    }} style={{ background: D.border, border: 'none', color: D.muted, borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>↑</button>
-                  )}
-                  {idx < layout.panels.length - 1 && (
-                    <button onClick={() => {
-                      const sorted = [...layout.panels].sort((a, b) => a.order - b.order)
-                      const next = sorted[idx + 1]
-                      const updated = layout.panels.map(p => {
-                        if (p.id === panel.id) return { ...p, order: next.order }
-                        if (p.id === next.id) return { ...p, order: panel.order }
-                        return p
-                      })
-                      onChange({ ...layout, panels: updated })
-                    }} style={{ background: D.border, border: 'none', color: D.muted, borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>↓</button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <button onClick={() => onChange(DEFAULT_LAYOUT)}
-        style={{ marginTop: 16, width: '100%', padding: 10, background: 'none', border: `1px solid ${D.border}`, borderRadius: 8, color: D.muted, fontFamily: D.sans, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
-        Reset to Default
-      </button>
     </div>
   )
 }
@@ -978,6 +932,8 @@ export default function PWAApp() {
   const [scores, setScores] = useState<Record<string, { conviction: number; squeeze_score: number; options_flow_score: number; macro_score: number; tier: string }>>({})
   const scoreTimestamps = useRef<Record<string, number>>({})
   const [layout, setLayout] = useState<LayoutConfig>(DEFAULT_LAYOUT)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES)
+  const [activeWorkspace, setActiveWorkspace] = useState('default')
   const saveLayoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const isDesktop = useIsDesktop()
   const isMobile = !isDesktop
@@ -1086,11 +1042,15 @@ export default function PWAApp() {
       .then(({ data }) => { if (data) setWatchlist(data.map((r: { symbol: string }) => r.symbol)) }, () => {})
   }, [user])
 
-  // Load layout config from Supabase
+  // Load layout + workspaces from Supabase
   useEffect(() => {
     if (!user) return
-    getSupabase().from('profiles').select('layout_config').eq('id', user.id).single()
-      .then(({ data }) => { if (data?.layout_config) setLayout(data.layout_config) })
+    getSupabase().from('profiles').select('layout_config, workspaces, active_workspace').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (data?.layout_config) setLayout(data.layout_config)
+        if (data?.workspaces) setWorkspaces(data.workspaces)
+        if (data?.active_workspace) setActiveWorkspace(data.active_workspace)
+      })
   }, [user])
 
   const handleLayoutChange = useCallback((newLayout: LayoutConfig) => {
@@ -1102,6 +1062,26 @@ export default function PWAApp() {
         .then(() => console.log('[layout] saved to Supabase'))
     }, 1000)
   }, [user])
+
+  const switchWorkspace = useCallback((wsId: string) => {
+    const ws = workspaces.find(w => w.id === wsId)
+    if (!ws) return
+    setActiveWorkspace(wsId)
+    handleLayoutChange(ws.layout)
+    if (!user) return
+    getSupabase().from('profiles').update({ active_workspace: wsId }).eq('id', user.id)
+  }, [workspaces, handleLayoutChange, user])
+
+  const saveCurrentAsWorkspace = useCallback(() => {
+    const name = prompt('Workspace name:')
+    if (!name) return
+    const newWs: Workspace = { id: `custom_${Date.now()}`, name, layout: { ...layout } }
+    const updated = [...workspaces, newWs]
+    setWorkspaces(updated)
+    setActiveWorkspace(newWs.id)
+    if (!user) return
+    getSupabase().from('profiles').update({ workspaces: updated, active_workspace: newWs.id }).eq('id', user.id)
+  }, [layout, workspaces, user])
 
   useEffect(() => {
     if (watchlist.length) fetchQuotes(watchlist)
@@ -2025,7 +2005,7 @@ export default function PWAApp() {
 
               if (panel.id === 'chart') return (
                 <div key="chart" style={{ marginBottom: 20 }}>
-                  <StockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
+                  <ApexStockChart symbol={sym} isCrypto={isCrypto} livePrice={liveQuotes[sym.toUpperCase()]?.price ?? liveQuotes[sym]?.price} isLive={!!liveQuotes[sym.toUpperCase()]?.is_live} />
                 </div>
               )
 
@@ -2197,6 +2177,46 @@ export default function PWAApp() {
             }}>
               ✦ AI
             </button>
+          )}
+
+          {/* Workspace selector */}
+          {!isMobile && (
+            <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginLeft: 4 }}>
+              {workspaces.map(ws => (
+                <button key={ws.id} onClick={() => switchWorkspace(ws.id)} style={{
+                  padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: activeWorkspace === ws.id ? `${D.accent}20` : 'transparent',
+                  color: activeWorkspace === ws.id ? D.accent : D.muted,
+                  fontFamily: D.sans, fontWeight: 700, fontSize: 10,
+                  transition: 'all 0.15s',
+                }}>{ws.name}</button>
+              ))}
+              <button onClick={saveCurrentAsWorkspace} title="Save current layout as workspace" style={{
+                padding: '2px 6px', borderRadius: 4, border: 'none', background: 'transparent',
+                color: D.muted, cursor: 'pointer', fontSize: 14, lineHeight: 1,
+              }}>+</button>
+            </div>
+          )}
+
+          {/* Quick panel toggles */}
+          {!isMobile && (
+            <div style={{ display: 'flex', gap: 2, alignItems: 'center', padding: '2px 6px', background: D.surface, borderRadius: 6, border: `1px solid ${D.border}` }}>
+              {layout.panels.map(panel => {
+                const icons: Record<string, string> = { chart: '📈', scores: '⚡', options: '📊', ai: '✦', news: '📰' }
+                return (
+                  <button key={panel.id} onClick={() => {
+                    const updated = layout.panels.map(p => p.id === panel.id ? { ...p, visible: !p.visible } : p)
+                    handleLayoutChange({ ...layout, panels: updated })
+                  }} title={DETAIL_PANELS.find(p => p.id === panel.id)?.label} style={{
+                    width: 24, height: 24, borderRadius: 4, border: 'none',
+                    background: panel.visible ? `${D.accent}20` : 'transparent',
+                    color: panel.visible ? D.accent : D.muted,
+                    cursor: 'pointer', fontSize: 11, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                  }}>{icons[panel.id] ?? '□'}</button>
+                )
+              })}
+            </div>
           )}
 
           {/* Market hours + crypto badge */}
