@@ -865,6 +865,15 @@ export default function PWAApp() {
         signal: AbortSignal.timeout(10000),
       })
       console.log(`[fetchScore] ${symbol} status=${res.status}`)
+      // Don't retry on 429 — back off 30s instead
+      if (res.status === 429) {
+        console.log(`[fetchScore] ${symbol} rate limited — backing off 30s`)
+        setTimeout(() => {
+          delete scoreTimestamps.current[symbol]
+          fetchScore(symbol, 0)
+        }, 30000)
+        return
+      }
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
       console.log(`[fetchScore] ${symbol} conviction=${data.conviction} tier=${data.tier}`)
@@ -881,12 +890,12 @@ export default function PWAApp() {
           },
         }))
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(`[fetchScore] ${symbol} error:`, e)
       // Retry on failure — clear TTL so retry can proceed
       delete scoreTimestamps.current[symbol]
-      if (retries > 0) {
-        setTimeout(() => fetchScore(symbol, retries - 1), 2000)
+      if (retries > 0 && !e.message?.includes('429')) {
+        setTimeout(() => fetchScore(symbol, retries - 1), 3000)
       }
     }
   }, [isPro, user?.id])
@@ -894,7 +903,7 @@ export default function PWAApp() {
   // Fetch scores for watchlist symbols (all users see conviction numbers)
   useEffect(() => {
     if (!watchlist.length) return
-    watchlist.forEach(sym => fetchScore(sym))
+    watchlist.forEach((sym, i) => setTimeout(() => fetchScore(sym), i * 500))
   }, [watchlist, fetchScore])
 
   // Fetch score when ticker selected — force fresh fetch (clear TTL)
