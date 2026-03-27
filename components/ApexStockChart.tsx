@@ -44,19 +44,23 @@ export default function ApexStockChart({ symbol, isCrypto, livePrice, isLive }: 
     prevSymbol.current = symbol
 
     fetch(`/api/chart/${symbol}?timeframe=${timeframe}`)
-      .then(r => r.json())
-      .then(data => {
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(json => {
         if (prevSymbol.current !== symbol) return
-        const b = data.bars ?? data.candles ?? data ?? []
-        if (!Array.isArray(b) || b.length === 0) {
-          setError('No chart data available')
+        console.log('[ApexChart]', symbol, 'response keys:', Object.keys(json), 'bars?', Array.isArray(json.bars) ? json.bars.length : 'not array')
+        const b: Bar[] = json.bars ?? json.candles ?? (Array.isArray(json) ? json : [])
+        if (b.length === 0) {
+          setError(json.error ?? 'No chart data available')
           setLoading(false)
           return
         }
         setBars(b)
         setLoading(false)
       })
-      .catch(() => { setError('Chart unavailable'); setLoading(false) })
+      .catch(e => { console.error('[ApexChart]', symbol, 'error:', e); setError('Chart unavailable'); setLoading(false) })
   }, [symbol, timeframe])
 
   const closes = bars.map(b => b.close)
