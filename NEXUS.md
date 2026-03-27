@@ -32,3 +32,13 @@ Key rules:
 - One change at a time: make → verify → commit → repeat
 - Pre-flight: pwd + health check + cat LOCKED.md before every session
 - Stability before features: health check green before any new work
+
+## Elite Workflow SOP
+See: ~/projects/nexus-protocol/core/ELITE_WORKFLOW.md
+
+Key rules:
+- 20-min rule: no progress → STOP, run 5-Why
+- Check provider status FIRST when multiple things break
+- One change at a time: make → verify → commit → repeat
+- Pre-flight: pwd + health check + cat LOCKED.md
+- Stability before features always
