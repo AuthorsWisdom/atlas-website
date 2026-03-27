@@ -469,18 +469,22 @@ function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
 
   useEffect(() => {
     if (!isPro || !symbol || fetchedRef.current === symbol) return
+    // Wait for score data before calling AI — otherwise context is empty
+    const s = scores[symbol]
+    if (!s || s.conviction === undefined) return
     fetchedRef.current = symbol
     setLoading(true)
     setError('')
     setAnalysis('')
     const controller = new AbortController()
     const t = setTimeout(() => controller.abort(), 30000)
+    const context = `${symbol} conviction: ${s.conviction}/100, tier: ${s.tier}, squeeze_score: ${s.squeeze_score}, options_flow_score: ${s.options_flow_score}, macro_score: ${s.macro_score}`
     fetch(`/api/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Is-Pro': 'true', 'X-User-ID': user?.id ?? '' },
       body: JSON.stringify({
-        messages: [{ role: 'user', content: `Give a concise 3-4 sentence analysis of ${symbol}: (1) current technical setup and momentum, (2) key risk/reward factors, (3) actionable outlook. Reference the conviction score of ${scores[symbol]?.conviction ?? 'N/A'}/100 and current macro regime. Max 120 words.` }],
-        context: `${symbol} conviction: ${scores[symbol]?.conviction ?? 0}/100, tier: ${scores[symbol]?.tier ?? 'unknown'}`,
+        messages: [{ role: 'user', content: `Give a concise 3-4 sentence analysis of ${symbol}: (1) current technical setup and momentum, (2) key risk/reward factors, (3) actionable outlook. Reference the conviction score of ${s.conviction}/100 and current macro regime. Max 120 words.` }],
+        context,
         symbol,
       }),
       signal: controller.signal,
