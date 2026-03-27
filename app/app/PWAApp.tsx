@@ -982,6 +982,8 @@ export default function PWAApp() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<{ loading: boolean; data: PortfolioData | null }>({ loading: false, data: null })
   const [showPortfolio, setShowPortfolio] = useState(false)
+  const [portfolio, setPortfolio] = useState<Array<{ symbol: string; shares: number; avgCost: number }>>([])
+  const [portfolioInput, setPortfolioInput] = useState({ symbol: '', shares: '', avgCost: '' })
   const [aiUsage, setAIUsage] = useState<{ daily_used: number; monthly_used: number; daily_limit: number; monthly_limit: number } | null>(null)
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({})
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -1135,6 +1137,27 @@ export default function PWAApp() {
         if (data?.active_workspace) setActiveWorkspace(data.active_workspace)
       })
   }, [user])
+
+  // Load portfolio from Supabase
+  useEffect(() => {
+    if (!user) return
+    getSupabase().from('profiles').select('portfolio').eq('id', user.id).maybeSingle()
+      .then(({ data }) => { if (data?.portfolio) setPortfolio(data.portfolio) })
+  }, [user])
+
+  const savePortfolio = useCallback((positions: typeof portfolio) => {
+    setPortfolio(positions)
+    if (!user) return
+    getSupabase().from('profiles').update({ portfolio: positions }).eq('id', user.id).then(() => {})
+  }, [user])
+
+  const addPortfolioPosition = useCallback(() => {
+    const { symbol, shares, avgCost } = portfolioInput
+    if (!symbol || !shares) return
+    const updated = [...portfolio.filter(p => p.symbol !== symbol.toUpperCase()), { symbol: symbol.toUpperCase(), shares: parseFloat(shares), avgCost: parseFloat(avgCost) || 0 }]
+    savePortfolio(updated)
+    setPortfolioInput({ symbol: '', shares: '', avgCost: '' })
+  }, [portfolioInput, portfolio, savePortfolio])
 
   const handleLayoutChange = useCallback((newLayout: LayoutConfig) => {
     setLayout(newLayout)
@@ -1889,6 +1912,64 @@ export default function PWAApp() {
             </div>
           </div>
         )}
+
+        {/* Portfolio Tracker */}
+        <div style={{ background: D.surface, borderRadius: 12, border: `1px solid ${D.border}`, padding: 16, marginTop: 20 }}>
+          <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12 }}>My Portfolio</div>
+          {/* Add position */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+            {[
+              { key: 'symbol', placeholder: 'TICKER', width: 80 },
+              { key: 'shares', placeholder: 'Shares', width: 70 },
+              { key: 'avgCost', placeholder: 'Avg $', width: 80 },
+            ].map(f => (
+              <input key={f.key} value={(portfolioInput as Record<string, string>)[f.key]} onChange={e => setPortfolioInput(prev => ({ ...prev, [f.key]: e.target.value }))}
+                placeholder={f.placeholder} style={{ width: f.width, padding: '6px 8px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: f.key === 'symbol' ? D.mono : D.sans, outline: 'none', textTransform: f.key === 'symbol' ? 'uppercase' as const : 'none' as const }} />
+            ))}
+            <button onClick={addPortfolioPosition} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>+ Add</button>
+          </div>
+          {portfolio.length > 0 && (() => {
+            let totalValue = 0, totalCost = 0
+            const positions = portfolio.map(p => {
+              const price = liveQuotes[p.symbol]?.price ?? 0
+              const value = price * p.shares
+              const cost = p.avgCost * p.shares
+              const pnl = value - cost
+              const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
+              totalValue += value; totalCost += cost
+              return { ...p, price, value, pnl, pnlPct, conviction: scores[p.symbol]?.conviction ?? null }
+            })
+            const totalPnl = totalValue - totalCost
+            const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
+            return (
+              <>
+                <div style={{ display: 'flex', gap: 16, padding: '8px 10px', background: D.bg, borderRadius: 8, marginBottom: 10 }}>
+                  <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>Value</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: D.text }}>${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
+                  <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>P&L</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: totalPnl >= 0 ? D.accent : D.red }}>{totalPnl >= 0 ? '+' : ''}${totalPnl.toLocaleString('en-US', { maximumFractionDigits: 0 })} ({totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(1)}%)</div></div>
+                </div>
+                {positions.map(pos => (
+                  <div key={pos.symbol} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${D.border}`, cursor: 'pointer' }} onClick={() => setSelectedTicker(pos.symbol)}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontFamily: D.mono, fontWeight: 700, fontSize: 13, color: D.text }}>{pos.symbol}</span>
+                        {pos.conviction != null && <span style={{ fontSize: 9, fontFamily: D.sans, fontWeight: 700, color: pos.conviction >= 60 ? D.accent : pos.conviction < 40 ? D.red : '#F0B90B' }}>{pos.conviction}/100</span>}
+                      </div>
+                      <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans }}>{pos.shares} shares @ ${pos.avgCost.toFixed(2)}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div>
+                        <div style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 700, color: D.text }}>${pos.value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                        <div style={{ fontSize: 11, fontFamily: D.mono, color: pos.pnl >= 0 ? D.accent : D.red }}>{pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(0)} ({pos.pnlPct >= 0 ? '+' : ''}{pos.pnlPct.toFixed(1)}%)</div>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); savePortfolio(portfolio.filter(p => p.symbol !== pos.symbol)) }} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 14 }}>x</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )
+          })()}
+          {portfolio.length === 0 && <div style={{ textAlign: 'center', padding: '16px 0', color: D.muted, fontFamily: D.sans, fontSize: 12 }}>Add positions to track P&L with live prices + conviction scores.</div>}
+        </div>
 
         {/* Watchlist News */}
         {watchlist.length > 0 && (
