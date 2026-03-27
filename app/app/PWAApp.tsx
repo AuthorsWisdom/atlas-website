@@ -1122,12 +1122,12 @@ export default function PWAApp() {
     if (aiData[sym]?.loading) return
     setAIData(prev => ({ ...prev, [sym]: { loading: true, text: '', factors: [] } }))
     try {
-      const res = await fetch(`${BACKEND}/score/${sym}`, {
+      const res = await fetch(`/api/score/${sym}`, {
         headers: {
           'X-User-ID': user?.id ?? '',
           'X-Is-Pro': isPro ? 'true' : 'false',
-          'X-Has-BYOK': 'false',
         },
+        cache: 'no-store',
       })
       if (res.status === 429) {
         const err = await res.json()

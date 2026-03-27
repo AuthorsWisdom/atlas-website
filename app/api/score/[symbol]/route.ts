@@ -11,8 +11,10 @@ export async function GET(
 ) {
   const { symbol } = await params
   const sym = symbol.toUpperCase()
-  const isPro = request.headers.get('X-Is-Pro') ?? 'false'
-  const userId = request.headers.get('X-User-ID') ?? ''
+  const isPro = request.headers.get('x-is-pro') ?? request.headers.get('X-Is-Pro') ?? 'false'
+  const userId = request.headers.get('x-user-id') ?? request.headers.get('X-User-ID') ?? ''
+
+  console.log(`[score proxy] ${sym} isPro=${isPro} userId=${userId.slice(0, 8)}`)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12000)
