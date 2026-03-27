@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const BACKEND = 'https://web-production-e9e4b.up.railway.app'
+const BACKEND = 'https://atlas-backend-silent-log-2366.fly.dev'
 
 export const revalidate = 60
 

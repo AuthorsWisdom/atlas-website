@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-const RAILWAY = 'https://web-production-e9e4b.up.railway.app'
+const RAILWAY = 'https://atlas-backend-silent-log-2366.fly.dev'
 
 export async function GET(request: NextRequest) {
   const symbols = request.nextUrl.searchParams.get('symbols') ?? ''

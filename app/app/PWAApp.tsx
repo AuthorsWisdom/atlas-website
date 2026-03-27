@@ -10,7 +10,7 @@ import OptionsFlowPanel from '@/components/OptionsFlowPanel'
 import OptionsIntelligence from '@/components/OptionsIntelligence'
 import { useLivePrices } from '@/hooks/useLivePrices'
 
-const BACKEND = 'https://web-production-e9e4b.up.railway.app'
+const BACKEND = 'https://atlas-backend-silent-log-2366.fly.dev'
 const FREE_WATCHLIST_LIMIT = 3
 
 const CRYPTO_SYMBOLS = new Set([

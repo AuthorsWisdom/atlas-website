@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const RAILWAY = 'https://web-production-e9e4b.up.railway.app'
+const RAILWAY = 'https://atlas-backend-silent-log-2366.fly.dev'
 
 const CRYPTO_SYMBOLS = new Set([
   'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const RAILWAY = 'https://web-production-e9e4b.up.railway.app'
+const RAILWAY = 'https://atlas-backend-silent-log-2366.fly.dev'
 
 export const dynamic = 'force-dynamic'
 

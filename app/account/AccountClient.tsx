@@ -140,7 +140,7 @@ export default function AccountClient() {
   // Load key status on mount
   useEffect(() => {
     if (!user) return
-    fetch(`https://web-production-e9e4b.up.railway.app/keys/status/${user.id}`)
+    fetch(`https://atlas-backend-silent-log-2366.fly.dev/keys/status/${user.id}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setKeyStatus(d) })
       .catch(() => {})

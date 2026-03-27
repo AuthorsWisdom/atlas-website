@@ -44,9 +44,10 @@ Parent Protocol: https://github.com/AuthorsWisdom/nexus-protocol
 ## Infrastructure
 
 - Frontend: Vercel (xatlas.io)
-- Backend: Railway (web-production-e9e4b.up.railway.app)
+- Backend: Fly.io (atlas-backend-silent-log-2366.fly.dev)
+- Region: fra (Frankfurt) — required for Binance WebSocket (US IPs blocked)
 - Database/Auth: Supabase
 - GitHub: AuthorsWisdom/atlas-website
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 Nexus Protocol: https://github.com/AuthorsWisdom/nexus-protocol
