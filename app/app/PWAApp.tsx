@@ -859,10 +859,10 @@ export default function PWAApp() {
     scoreTimestamps.current[symbol] = now
     console.log(`[fetchScore] ${symbol} isPro=${isPro} userId=${user?.id?.slice(0, 8)} retries=${retries}`)
     try {
-      const url = `${BACKEND}/score/${symbol}`
-      const res = await fetch(url, {
+      const res = await fetch(`/api/score/${symbol}`, {
         headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(12000),
+        cache: 'no-store',
       })
       console.log(`[fetchScore] ${symbol} status=${res.status}`)
       // Don't retry on 429 — back off 30s instead
