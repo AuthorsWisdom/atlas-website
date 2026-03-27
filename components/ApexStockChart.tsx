@@ -69,12 +69,17 @@ export default function ApexStockChart({ symbol, isCrypto, livePrice, isLive }: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const series: any[] = []
   if (bars.length > 0) {
+    // Use ISO strings for x values in candle mode (category axis removes gaps)
+    const xVal = (b: Bar) => chartMode === 'candle'
+      ? new Date(b.time * 1000).toISOString()
+      : new Date(b.time * 1000)
+
     if (chartMode === 'candle') {
       series.push({
         name: symbol,
         type: 'candlestick',
         data: bars.map(b => ({
-          x: new Date(b.time * 1000),
+          x: xVal(b),
           y: [b.open, b.high, b.low, b.close],
         })),
       })
@@ -82,17 +87,16 @@ export default function ApexStockChart({ symbol, isCrypto, livePrice, isLive }: 
       series.push({
         name: symbol,
         type: 'line',
-        data: bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })),
+        data: bars.map(b => ({ x: xVal(b), y: b.close })),
       })
     }
 
     // Bollinger Bands
     if (showBB && closes.length >= 20) {
       const bb = computeBollingerBands(closes)
-      const times = bars.map(b => new Date(b.time * 1000))
       const toSeries = (vals: (number | null)[], name: string) => ({
         name, type: 'line' as const,
-        data: vals.map((v, i) => ({ x: times[i], y: v ?? null })).filter(d => d.y !== null),
+        data: vals.map((v, i) => v !== null ? { x: xVal(bars[i]), y: v } : null).filter(Boolean),
       })
       series.push(toSeries(bb.upper, 'BB Upper'))
       series.push(toSeries(bb.lower, 'BB Lower'))
@@ -101,13 +105,12 @@ export default function ApexStockChart({ symbol, isCrypto, livePrice, isLive }: 
 
     // Moving Averages
     if (showMA) {
-      const times = bars.map(b => new Date(b.time * 1000))
       const addMA = (period: number, name: string) => {
         if (closes.length >= period) {
           const vals = computeSMA(closes, period)
           series.push({
             name, type: 'line',
-            data: vals.map((v, i) => ({ x: times[i], y: v ?? null })).filter(d => d.y !== null),
+            data: vals.map((v, i) => v !== null ? { x: xVal(bars[i]), y: v } : null).filter(Boolean),
           })
         }
       }
@@ -141,10 +144,16 @@ export default function ApexStockChart({ symbol, isCrypto, livePrice, isLive }: 
     },
     theme: { mode: 'dark' },
     xaxis: {
-      type: 'datetime',
-      labels: { style: { colors: D.muted, fontFamily: D.mono, fontSize: '10px' } },
+      type: chartMode === 'candle' ? 'category' : 'datetime',
+      labels: {
+        style: { colors: D.muted, fontFamily: D.mono, fontSize: '10px' },
+        formatter: chartMode === 'candle'
+          ? (val: string) => { const d = new Date(val); return isNaN(d.getTime()) ? val : `${d.getMonth() + 1}/${d.getDate()}` }
+          : undefined,
+      },
       axisBorder: { color: D.border },
       axisTicks: { color: D.border },
+      tickAmount: 6,
     },
     yaxis: {
       opposite: true,
