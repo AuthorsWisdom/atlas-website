@@ -51,3 +51,12 @@ Parent Protocol: https://github.com/AuthorsWisdom/nexus-protocol
 
 Last updated: 2026-03-27
 Nexus Protocol: https://github.com/AuthorsWisdom/nexus-protocol
+
+## Proxy Route Map (browser never calls Fly.io directly)
+- /api/score/[symbol]    → FLY_URL/score/{symbol}
+- /api/quote/[symbol]    → FLY_URL/quote/{symbol}
+- /api/chart/[symbol]    → FLY_URL/chart/{symbol}
+- /api/news              → FLY_URL/news/{type}
+- /api/ai/chat           → FLY_URL/ai/chat
+- /api/options/*         → FLY_URL/options/*
+- /api/stream            → FLY_URL/stream/quotes (SSE)
