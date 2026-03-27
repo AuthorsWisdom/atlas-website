@@ -813,6 +813,23 @@ export default function PWAApp() {
         ...prev,
         [sym]: { loading: false, text: data.summary ?? `Conviction: ${data.conviction}/100. ${data.regime ?? ''}`, factors: factors.slice(0, 6) },
       }))
+      // Merge conviction + breakdown scores into quotes so the ring/bars update
+      if (data.conviction != null) {
+        // Backend returns squeeze_score/options_flow_score as -1/0/1 signals
+        // Normalize to 0-100 for the bars: -1→10, 0→50, 1→90
+        const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
+        setQuotes(prev => prev[sym] ? ({
+          ...prev,
+          [sym]: {
+            ...prev[sym],
+            conviction: data.conviction,
+            squeeze_score: normSignal(data.squeeze_score),
+            options_flow_score: normSignal(data.options_flow_score),
+            macro_score: data.components?.macro?.risk_on_score ?? prev[sym].macro_score,
+            regime: data.tier ?? prev[sym].regime,
+          },
+        }) : prev)
+      }
     } catch {
       setAIData(prev => ({ ...prev, [sym]: { loading: false, text: 'Analysis unavailable', factors: [] } }))
     }
