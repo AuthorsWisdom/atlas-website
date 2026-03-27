@@ -1060,7 +1060,12 @@ export default function PWAApp() {
     }).catch(() => {})
     setWatchlist(prev => [...prev, s])
     fetchQuotes([s])
-  }, [watchlist, user, fetchQuotes])
+    // Immediately fetch score for new ticker — don't wait for 60s TTL cycle
+    if (scoreTimestamps.current) {
+      delete scoreTimestamps.current[s]
+    }
+    fetchScore(s)
+  }, [watchlist, user, fetchQuotes, fetchScore])
 
   async function removeTicker(sym: string) {
     setWatchlist(prev => prev.filter(s => s !== sym))

@@ -31,6 +31,18 @@ const LOCAL_TICKERS = [
   { symbol: 'SPY', name: 'S&P 500 ETF', type: 'ETF' }, { symbol: 'QQQ', name: 'Nasdaq 100 ETF', type: 'ETF' },
   { symbol: 'IWM', name: 'Russell 2000 ETF', type: 'ETF' }, { symbol: 'GLD', name: 'Gold ETF', type: 'ETF' },
   { symbol: 'SLV', name: 'Silver ETF', type: 'ETF' }, { symbol: 'DIA', name: 'Dow Jones ETF', type: 'ETF' },
+  { symbol: 'XLE', name: 'Energy Select Sector SPDR', type: 'ETF' }, { symbol: 'XLF', name: 'Financial Select Sector SPDR', type: 'ETF' },
+  { symbol: 'XLK', name: 'Technology Select Sector SPDR', type: 'ETF' }, { symbol: 'XLV', name: 'Health Care Select Sector SPDR', type: 'ETF' },
+  { symbol: 'XLI', name: 'Industrial Select Sector SPDR', type: 'ETF' }, { symbol: 'XLP', name: 'Consumer Staples Select SPDR', type: 'ETF' },
+  { symbol: 'XLY', name: 'Consumer Discretionary Select SPDR', type: 'ETF' }, { symbol: 'XLU', name: 'Utilities Select Sector SPDR', type: 'ETF' },
+  { symbol: 'XLB', name: 'Materials Select Sector SPDR', type: 'ETF' }, { symbol: 'XLRE', name: 'Real Estate Select Sector SPDR', type: 'ETF' },
+  { symbol: 'XLC', name: 'Communication Services Select SPDR', type: 'ETF' },
+  { symbol: 'FANG', name: 'Diamondback Energy', type: 'CS' }, { symbol: 'FNGS', name: 'MicroSectors FANG+ ETN', type: 'ETF' },
+  { symbol: 'SOXL', name: 'Direxion Semiconductor Bull 3X', type: 'ETF' }, { symbol: 'TQQQ', name: 'ProShares UltraPro QQQ', type: 'ETF' },
+  { symbol: 'ARKK', name: 'ARK Innovation ETF', type: 'ETF' }, { symbol: 'TLT', name: 'iShares 20+ Year Treasury', type: 'ETF' },
+  { symbol: 'HYG', name: 'iShares iBoxx High Yield Corporate', type: 'ETF' }, { symbol: 'VNQ', name: 'Vanguard Real Estate ETF', type: 'ETF' },
+  { symbol: 'EEM', name: 'iShares MSCI Emerging Markets', type: 'ETF' }, { symbol: 'VTI', name: 'Vanguard Total Stock Market', type: 'ETF' },
+  { symbol: 'VOO', name: 'Vanguard S&P 500 ETF', type: 'ETF' }, { symbol: 'SCHD', name: 'Schwab US Dividend Equity', type: 'ETF' },
   { symbol: 'NEE', name: 'NextEra Energy', type: 'CS' }, { symbol: 'DHR', name: 'Danaher', type: 'CS' },
   { symbol: 'RTX', name: 'RTX Corp', type: 'CS' }, { symbol: 'HON', name: 'Honeywell', type: 'CS' },
   { symbol: 'AXP', name: 'American Express', type: 'CS' }, { symbol: 'ISRG', name: 'Intuitive Surgical', type: 'CS' },
@@ -57,18 +69,20 @@ export async function GET(request: NextRequest) {
   if (POLYGON_KEY) {
     try {
       const res = await fetch(
-        `https://api.polygon.io/v3/reference/tickers?search=${encodeURIComponent(query)}&active=true&market=stocks&limit=8&apiKey=${POLYGON_KEY}`,
+        `https://api.polygon.io/v3/reference/tickers?search=${encodeURIComponent(query)}&active=true&limit=10&apiKey=${POLYGON_KEY}`,
         { next: { revalidate: 300 } },
       )
       if (res.ok) {
         const data = await res.json()
-        return NextResponse.json({
-          results: data.results?.map((t: { ticker: string; name: string; type: string }) => ({
+        const polygonResults = (data.results ?? [])
+          .filter((t: { market: string; type: string }) => t.market === 'stocks' || t.type === 'ETF' || t.type === 'ETP')
+          .map((t: { ticker: string; name: string; type: string; market: string }) => ({
             symbol: t.ticker,
             name: t.name,
             type: t.type,
-          })) ?? [],
-        })
+          }))
+          .slice(0, 10)
+        return NextResponse.json({ results: polygonResults })
       }
     } catch {
       // Fall through to local

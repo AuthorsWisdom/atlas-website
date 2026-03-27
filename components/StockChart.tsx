@@ -58,6 +58,13 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
     setLoading(false)
   }, [symbol, timeframe])
 
+  // Clear stale data immediately on symbol change so chart doesn't render old data
+  useEffect(() => {
+    setBars([])
+    setLoading(true)
+    setError('')
+  }, [symbol])
+
   useEffect(() => { fetchData() }, [fetchData])
 
   // Build chart
@@ -168,13 +175,14 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
     const ro = new ResizeObserver(() => { if (el) chart.applyOptions({ width: el.clientWidth }) })
     ro.observe(el)
     return () => { ro.disconnect(); try { chart.remove() } catch { /* already removed */ }; chartInstanceRef.current = null; seriesRef.current = null }
-  }, [bars, chartMode, showBB, showMA, showMACD, timeframe])
+  }, [symbol, bars, chartMode, showBB, showMA, showMACD, timeframe])
 
   // ── Live price updates ──
   useEffect(() => {
     const series = seriesRef.current
+    const chart = chartInstanceRef.current
     const last = lastCandleRef.current
-    if (!series || !last) return
+    if (!series || !chart || !last) return
 
     const price = typeof livePrice === 'string' ? parseFloat(livePrice) : livePrice
     if (!price || isNaN(price) || price <= 0) return
