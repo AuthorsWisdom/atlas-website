@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const profileFetchedRef = useRef(false)
+  const initialSessionRef = useRef(false)
 
   const fetchProfile = useCallback(async (userId: string, email: string) => {
     if (profileFetchedRef.current) return
@@ -80,13 +81,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Skip INITIAL_SESSION — already handled by getSession() above
+      if (event === 'INITIAL_SESSION') return
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' })
         fetchProfile(session.user.id, session.user.email || '')
       } else {
         setUser(null)
         setProfile(null)
+        profileFetchedRef.current = false
       }
     })
 

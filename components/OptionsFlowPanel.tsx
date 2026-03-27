@@ -88,7 +88,7 @@ export default function OptionsFlowPanel({ symbol, isPro }: { symbol: string; is
     )
   }
 
-  if (!flow) {
+  if (!flow || flow.error || flow.put_call_ratio == null) {
     return (
       <div style={{ background: '#0B0E1A', borderRadius: 10, padding: 16, border: '1px solid #1A2038' }}>
         <div style={{ fontSize: 13, color: '#4A5575', fontFamily: "'DM Sans', sans-serif" }}>Options chain data available during market hours</div>

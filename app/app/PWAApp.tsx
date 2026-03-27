@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthContext'
 import { getSupabase } from '@/lib/supabase-browser'
@@ -454,6 +454,37 @@ function NewsFeedInline({ limit = 6, isPro }: { limit?: number; isPro: boolean }
       ))}
     </>
   )
+}
+
+// ── Error Boundary ──
+class DashboardErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: '' }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error?.message ?? 'Unknown error' }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('Dashboard error:', error, info)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#060810', color: '#E8EDFF', fontFamily: 'DM Sans', gap: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Something went wrong</div>
+          <div style={{ fontSize: 13, color: '#4A5575', maxWidth: 400, textAlign: 'center' }}>{this.state.error}</div>
+          <button onClick={() => this.setState({ hasError: false, error: '' })} style={{ marginTop: 8, padding: '10px 24px', background: '#00C896', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
+            Retry
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 // ── Main App ──
@@ -1675,6 +1706,7 @@ export default function PWAApp() {
   }
 
   return (
+    <DashboardErrorBoundary>
     <div style={{ background: D.bg, minHeight: '100dvh', color: D.text }}>
       {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
 
@@ -1976,5 +2008,6 @@ export default function PWAApp() {
         </div>
       )}
     </div>
+    </DashboardErrorBoundary>
   )
 }
