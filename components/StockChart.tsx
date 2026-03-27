@@ -63,7 +63,11 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
   // Build chart
   useEffect(() => {
     if (!chartRef.current || bars.length === 0) return
-    if (chartInstanceRef.current) { chartInstanceRef.current.remove(); chartInstanceRef.current = null }
+    // Clean up previous chart instance safely
+    if (chartInstanceRef.current) {
+      try { chartInstanceRef.current.remove() } catch { /* already removed */ }
+      chartInstanceRef.current = null
+    }
     seriesRef.current = null
     lastCandleRef.current = null
     priceLineRef.current = null
@@ -163,7 +167,7 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
     const el = chartRef.current
     const ro = new ResizeObserver(() => { if (el) chart.applyOptions({ width: el.clientWidth }) })
     ro.observe(el)
-    return () => { ro.disconnect(); chart.remove(); chartInstanceRef.current = null; seriesRef.current = null }
+    return () => { ro.disconnect(); try { chart.remove() } catch { /* already removed */ }; chartInstanceRef.current = null; seriesRef.current = null }
   }, [bars, chartMode, showBB, showMA, showMACD, timeframe])
 
   // ── Live price updates ──
