@@ -25,14 +25,15 @@ const DEFAULT_MODEL_FREE = 'anthropic/claude-haiku-4-5-20251001'
 const DEFAULT_MODEL_PRO  = 'anthropic/claude-sonnet-4-5-20250514'
 
 export async function POST(request: NextRequest) {
-  /* ── Validate gateway key exists ─────────────────────────────── */
-  if (!process.env.AI_GATEWAY_API_KEY) {
-    console.error('AI_GATEWAY_API_KEY not configured')
-    return NextResponse.json({ error: 'AI service not configured' }, { status: 503 })
-  }
-
   const userId = request.headers.get('X-User-ID') ?? ''
   const isPro  = request.headers.get('X-Is-Pro') === 'true'
+
+  /* ── If no gateway key, go straight to Fly.io backend ────────── */
+  if (!process.env.AI_GATEWAY_API_KEY) {
+    let body: Record<string, unknown>
+    try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request body' }, { status: 400 }) }
+    return proxyToRailway(request, body, userId, isPro)
+  }
 
   let body: {
     messages?: { role: string; content: string }[]

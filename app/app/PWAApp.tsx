@@ -740,11 +740,11 @@ export default function PWAApp() {
     } catch { /* don't block on score errors */ }
   }, [isPro, user?.id])
 
-  // Fetch scores for watchlist symbols
+  // Fetch scores for watchlist symbols (all users see conviction numbers)
   useEffect(() => {
-    if (!isPro || !watchlist.length) return
+    if (!watchlist.length) return
     watchlist.forEach(sym => fetchScore(sym))
-  }, [isPro, watchlist, fetchScore])
+  }, [watchlist, fetchScore])
 
   // Fetch score when ticker selected
   useEffect(() => {
