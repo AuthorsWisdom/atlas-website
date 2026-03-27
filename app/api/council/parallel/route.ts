@@ -8,9 +8,10 @@ export const maxDuration = 60
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    const userId = request.headers.get('X-User-ID') ?? ''
     const res = await fetch(`${RAILWAY}/ai/council/parallel`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-User-ID': userId },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(55000),
     })

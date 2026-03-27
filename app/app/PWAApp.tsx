@@ -2464,11 +2464,11 @@ export default function PWAApp() {
             const endpoint = councilMode === 'debate' ? '/api/council/debate' : '/api/council/parallel'
             const res = await fetch(endpoint, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'X-User-ID': user?.id ?? '' },
               body: JSON.stringify({
                 symbol: sym, question: councilQuestion, market_data: marketData,
                 providers: activeProviders.map(([pid, key]) => ({ provider: pid, api_key: key, model: PROVIDER_DEFAULTS[pid] })),
-                mode: councilMode,
+                mode: councilMode, user_id: user?.id ?? '',
               }),
             })
             setCouncilResult(await res.json())
