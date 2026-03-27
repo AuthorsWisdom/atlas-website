@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const RAILWAY = 'https://atlas-backend-silent-log-2366.fly.dev'
 
+export async function GET(request: NextRequest) {
+  const userId = request.nextUrl.searchParams.get('userId')
+  if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+
+  try {
+    const res = await fetch(`${RAILWAY}/keys/status/${userId}`, {
+      signal: AbortSignal.timeout(8000),
+      cache: 'no-store',
+    })
+    if (!res.ok) return NextResponse.json({ anthropic: false, openai: false, preferred: 'anthropic' })
+    return NextResponse.json(await res.json())
+  } catch {
+    return NextResponse.json({ anthropic: false, openai: false, preferred: 'anthropic' })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId, provider, key } = await request.json()

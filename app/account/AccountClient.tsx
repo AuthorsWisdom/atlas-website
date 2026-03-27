@@ -6,15 +6,19 @@ import AuthModal from '@/components/AuthModal'
 import { getSupabase } from '@/lib/supabase-browser'
 
 const mono = "'JetBrains Mono', monospace"
-const display = "'Outfit', sans-serif"
+const sans = "'DM Sans', sans-serif"
+const D = {
+  bg: '#060810', surface: '#0B0E1A', card: '#0F1220', border: '#1A2038',
+  accent: '#00C896', red: '#E24B4A', text: '#E8EDFF', muted: '#4A5575',
+}
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
   borderRadius: 8,
-  border: '1px solid rgba(255,255,255,0.1)',
-  background: '#080808',
-  color: '#f0ede6',
+  border: `1px solid ${D.border}`,
+  background: D.bg,
+  color: D.text,
   fontFamily: mono,
   fontSize: 13,
   outline: 'none',
@@ -22,8 +26,8 @@ const inputStyle: React.CSSProperties = {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#111', borderRadius: 12, padding: '20px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 12 }}>
-      <div style={{ fontFamily: mono, fontSize: 10, color: '#555', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>{title}</div>
+    <div style={{ background: D.surface, borderRadius: 12, padding: '24px', border: `1px solid ${D.border}`, marginBottom: 16 }}>
+      <div style={{ fontFamily: sans, fontSize: 11, color: D.muted, letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 700, marginBottom: 16 }}>{title}</div>
       {children}
     </div>
   )
@@ -31,16 +35,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ label, value, badge }: { label: string; value: string; badge?: { text: string; color: string } }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-      <span style={{ fontFamily: mono, fontSize: 12, color: '#888' }}>{label}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <span style={{ fontFamily: sans, fontSize: 13, color: D.muted }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 600, color: '#f0ede6' }}>{value}</span>
+        <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 600, color: D.text }}>{value}</span>
         {badge && (
           <span style={{
-            fontFamily: mono, fontSize: 9, fontWeight: 600, padding: '3px 8px', borderRadius: 4,
-            background: badge.color === 'green' ? 'rgba(74,222,128,0.1)' : badge.color === 'red' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)',
-            color: badge.color === 'green' ? '#4ade80' : badge.color === 'red' ? '#f87171' : '#fbbf24',
-            border: `1px solid ${badge.color === 'green' ? 'rgba(74,222,128,0.2)' : badge.color === 'red' ? 'rgba(248,113,113,0.2)' : 'rgba(251,191,36,0.2)'}`,
+            fontFamily: sans, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+            background: badge.color === 'green' ? `${D.accent}15` : badge.color === 'red' ? `${D.red}15` : '#fbbf2415',
+            color: badge.color === 'green' ? D.accent : badge.color === 'red' ? D.red : '#fbbf24',
+            border: `1px solid ${badge.color === 'green' ? `${D.accent}30` : badge.color === 'red' ? `${D.red}30` : '#fbbf2430'}`,
           }}>{badge.text}</span>
         )}
       </div>
@@ -65,22 +69,22 @@ export default function AccountClient() {
 
   if (authLoading) {
     return (
-      <div style={{ background: '#080808', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: mono, fontSize: 12, color: '#555' }}>Loading...</span>
+      <div style={{ background: D.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontFamily: sans, fontSize: 14, color: D.muted }}>Loading...</span>
       </div>
     )
   }
 
   if (!user) {
     return (
-      <div style={{ background: '#080808', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <div style={{ background: D.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
         {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
-        <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, letterSpacing: '0.2em', color: '#4ade80', marginBottom: 24 }}>XATLAS</span>
-        <h1 style={{ fontFamily: display, fontSize: '1.5rem', fontWeight: 700, color: '#f0ede6', marginBottom: 12 }}>Sign in to manage your account</h1>
+        <span style={{ fontFamily: sans, fontSize: 16, fontWeight: 800, letterSpacing: '-0.3px', color: D.text, marginBottom: 24 }}>XATLAS</span>
+        <h1 style={{ fontFamily: sans, fontSize: 24, fontWeight: 700, color: D.text, marginBottom: 12 }}>Sign in to manage your account</h1>
         <button onClick={() => setShowAuth(true)} style={{
-          padding: '12px 32px', borderRadius: 8, border: 'none', background: '#4ade80', color: '#052e16',
-          fontFamily: mono, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>Sign in</button>
+          padding: '12px 32px', borderRadius: 8, border: 'none', background: D.accent, color: '#000',
+          fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+        }}>Sign In</button>
       </div>
     )
   }
@@ -141,12 +145,12 @@ export default function AccountClient() {
   // Load key status on mount
   useEffect(() => {
     if (!user) return
-    fetch(`https://atlas-backend-silent-log-2366.fly.dev/keys/status/${user.id}`, {
+    fetch(`/api/keys?userId=${user.id}`, {
       signal: AbortSignal.timeout(8000),
     })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setKeyStatus(d) })
-      .catch(e => { console.error('Key status fetch failed:', e); setPageError('') })
+      .catch(e => { console.error('Key status fetch failed:', e) })
   }, [user])
 
   async function handleSaveKey(provider: 'anthropic' | 'openai') {
@@ -183,31 +187,27 @@ export default function AccountClient() {
   }
 
   return (
-    <div style={{ background: '#080808', minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 20 }}>
-          <a href="/" style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', color: '#f0ede6', textDecoration: 'none' }}>XATLAS</a>
-          <a href="/app" style={{ fontFamily: mono, fontSize: 11, color: '#4ade80', textDecoration: 'none' }}>Back to app</a>
+    <div style={{ background: D.bg, minHeight: '100vh' }}>
+      <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 24px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: `1px solid ${D.border}`, marginBottom: 24 }}>
+          <a href="/" style={{ fontFamily: sans, fontSize: 16, fontWeight: 800, color: D.text, textDecoration: 'none', letterSpacing: '-0.3px' }}>XATLAS</a>
+          <a href="/app" style={{ fontFamily: sans, fontSize: 13, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Back to Dashboard</a>
         </div>
 
-        <h1 style={{ fontFamily: display, fontSize: '1.6rem', fontWeight: 700, color: '#f0ede6', marginBottom: 4 }}>Account</h1>
-        <p style={{ fontFamily: mono, fontSize: 12, color: '#555', marginBottom: 24 }}>Manage your XAtlas account and subscription.</p>
+        <h1 style={{ fontFamily: sans, fontSize: 24, fontWeight: 800, color: D.text, marginBottom: 4 }}>Account</h1>
+        <p style={{ fontFamily: sans, fontSize: 13, color: D.muted, marginBottom: 24 }}>Manage your subscription, API keys, and settings.</p>
 
         {pageError && (
-          <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
-            <p style={{ fontFamily: mono, fontSize: 11, color: '#f87171' }}>{pageError}</p>
+          <div style={{ background: `${D.red}10`, border: `1px solid ${D.red}30`, borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+            <p style={{ fontFamily: sans, fontSize: 12, color: D.red }}>{pageError}</p>
           </div>
         )}
 
         {/* Account info */}
-        <Section title="Account">
+        <Section title="Profile">
           <Row label="Email" value={user.email ?? '—'} />
           <Row label="User ID" value={user.id.slice(0, 8) + '...'} />
-          <button onClick={signOut} style={{
-            width: '100%', padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
-            background: 'transparent', color: '#888', fontFamily: mono, fontSize: 11, cursor: 'pointer', marginTop: 4,
-          }}>Sign out</button>
         </Section>
 
         {/* Subscription */}
@@ -218,12 +218,12 @@ export default function AccountClient() {
           {/* Stripe users */}
           {isPro && source === 'stripe' && (
             <button onClick={handlePortal} disabled={portalLoading} style={{
-              width: '100%', padding: 10, borderRadius: 8, border: 'none',
-              background: 'rgba(74,222,128,0.1)', color: '#4ade80',
-              fontFamily: mono, fontSize: 11, fontWeight: 600, cursor: portalLoading ? 'wait' : 'pointer',
+              width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${D.border}`,
+              background: 'none', color: D.text,
+              fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: portalLoading ? 'wait' : 'pointer',
               opacity: portalLoading ? 0.6 : 1, marginTop: 8,
             }}>
-              {portalLoading ? 'Opening...' : 'Manage billing'}
+              {portalLoading ? 'Opening...' : 'Manage Billing & Cancel'}
             </button>
           )}
 
@@ -231,13 +231,13 @@ export default function AccountClient() {
           {isPro && (source === 'apple' || source === 'revenuecat') && (
             <div style={{ marginTop: 8 }}>
               <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener noreferrer" style={{
-                display: 'block', textAlign: 'center', width: '100%', padding: 10, borderRadius: 8, border: 'none',
-                background: 'rgba(255,255,255,0.06)', color: '#aaa',
-                fontFamily: mono, fontSize: 11, fontWeight: 600, textDecoration: 'none',
+                display: 'block', textAlign: 'center', width: '100%', padding: 12, borderRadius: 8,
+                border: `1px solid ${D.border}`, background: 'none', color: D.text,
+                fontFamily: sans, fontSize: 13, fontWeight: 600, textDecoration: 'none',
               }}>
                 Manage in iPhone Settings
               </a>
-              <p style={{ fontFamily: mono, fontSize: 9, color: '#444', marginTop: 6, textAlign: 'center' }}>
+              <p style={{ fontFamily: sans, fontSize: 11, color: D.muted, marginTop: 6, textAlign: 'center' }}>
                 Or go to Settings &gt; Apple ID &gt; Subscriptions on your iPhone
               </p>
             </div>
@@ -246,9 +246,9 @@ export default function AccountClient() {
           {/* Free users */}
           {!isPro && (
             <a href="/#pricing" style={{
-              display: 'block', textAlign: 'center', width: '100%', padding: 10, borderRadius: 8,
-              background: '#4ade80', color: '#052e16', border: 'none',
-              fontFamily: mono, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginTop: 8,
+              display: 'block', textAlign: 'center', width: '100%', padding: 12, borderRadius: 8,
+              background: D.accent, color: '#000', border: 'none',
+              fontFamily: sans, fontSize: 14, fontWeight: 700, textDecoration: 'none', marginTop: 8,
             }}>
               Upgrade to Pro
             </a>
@@ -259,23 +259,23 @@ export default function AccountClient() {
         <Section title="API Keys (BYOK)">
           {isPro ? (
             <>
-              {keysError && <p style={{ fontFamily: mono, fontSize: 10, color: '#f87171', marginBottom: 10 }}>{keysError}</p>}
+              {keysError && <p style={{ fontFamily: sans, fontSize: 12, color: D.red, marginBottom: 10 }}>{keysError}</p>}
 
               {/* Anthropic */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666' }}>Anthropic Claude</label>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ fontFamily: sans, fontSize: 13, color: D.text, fontWeight: 600 }}>Anthropic Claude</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: keyStatus.anthropic ? '#4ade80' : '#333' }} />
-                    <span style={{ fontFamily: mono, fontSize: 9, color: keyStatus.anthropic ? '#4ade80' : '#555' }}>
-                      {keyStatus.anthropic ? 'Using your key' : 'Using XAtlas key'}
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: keyStatus.anthropic ? D.accent : D.border }} />
+                    <span style={{ fontFamily: sans, fontSize: 11, color: keyStatus.anthropic ? D.accent : D.muted }}>
+                      {keyStatus.anthropic ? 'Your key' : 'XAtlas key'}
                     </span>
                   </div>
                 </div>
                 {keyStatus.anthropic ? (
                   <button onClick={() => handleRemoveKey('anthropic')} disabled={keysSaving === 'anthropic'} style={{
-                    width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(248,113,113,0.2)',
-                    background: 'rgba(248,113,113,0.05)', color: '#f87171', fontFamily: mono, fontSize: 10, cursor: 'pointer',
+                    width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${D.red}30`,
+                    background: `${D.red}08`, color: D.red, fontFamily: sans, fontSize: 12, cursor: 'pointer',
                     opacity: keysSaving === 'anthropic' ? 0.5 : 1,
                   }}>{keysSaving === 'anthropic' ? 'Removing...' : 'Remove Anthropic key'}</button>
                 ) : (
@@ -287,12 +287,12 @@ export default function AccountClient() {
                       onChange={e => setAnthropicKey(e.target.value)}
                       style={{ ...inputStyle, flex: 1 }}
                     />
-                    <button onClick={() => setShowAnthropicKey(v => !v)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '0 8px', color: '#555', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>
+                    <button onClick={() => setShowAnthropicKey(v => !v)} style={{ background: 'none', border: `1px solid ${D.border}`, borderRadius: 8, padding: '0 10px', color: D.muted, fontFamily: sans, fontSize: 11, cursor: 'pointer' }}>
                       {showAnthropicKey ? 'Hide' : 'Show'}
                     </button>
                     <button onClick={() => handleSaveKey('anthropic')} disabled={!anthropicKey || keysSaving === 'anthropic'} style={{
-                      padding: '8px 14px', borderRadius: 6, border: 'none', background: '#4ade80', color: '#052e16',
-                      fontFamily: mono, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      padding: '10px 16px', borderRadius: 8, border: 'none', background: D.accent, color: '#000',
+                      fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                       opacity: !anthropicKey || keysSaving === 'anthropic' ? 0.5 : 1,
                     }}>{keysSaving === 'anthropic' ? '...' : 'Save'}</button>
                   </div>
@@ -300,20 +300,20 @@ export default function AccountClient() {
               </div>
 
               {/* OpenAI */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666' }}>OpenAI GPT-4</label>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ fontFamily: sans, fontSize: 13, color: D.text, fontWeight: 600 }}>OpenAI GPT-4</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: keyStatus.openai ? '#4ade80' : '#333' }} />
-                    <span style={{ fontFamily: mono, fontSize: 9, color: keyStatus.openai ? '#4ade80' : '#555' }}>
-                      {keyStatus.openai ? 'Using your key' : 'Using XAtlas key'}
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: keyStatus.openai ? D.accent : D.border }} />
+                    <span style={{ fontFamily: sans, fontSize: 11, color: keyStatus.openai ? D.accent : D.muted }}>
+                      {keyStatus.openai ? 'Your key' : 'XAtlas key'}
                     </span>
                   </div>
                 </div>
                 {keyStatus.openai ? (
                   <button onClick={() => handleRemoveKey('openai')} disabled={keysSaving === 'openai'} style={{
-                    width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(248,113,113,0.2)',
-                    background: 'rgba(248,113,113,0.05)', color: '#f87171', fontFamily: mono, fontSize: 10, cursor: 'pointer',
+                    width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${D.red}30`,
+                    background: `${D.red}08`, color: D.red, fontFamily: sans, fontSize: 12, cursor: 'pointer',
                     opacity: keysSaving === 'openai' ? 0.5 : 1,
                   }}>{keysSaving === 'openai' ? 'Removing...' : 'Remove OpenAI key'}</button>
                 ) : (
@@ -325,74 +325,84 @@ export default function AccountClient() {
                       onChange={e => setOpenaiKey(e.target.value)}
                       style={{ ...inputStyle, flex: 1 }}
                     />
-                    <button onClick={() => setShowOpenaiKey(v => !v)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '0 8px', color: '#555', fontFamily: mono, fontSize: 9, cursor: 'pointer' }}>
+                    <button onClick={() => setShowOpenaiKey(v => !v)} style={{ background: 'none', border: `1px solid ${D.border}`, borderRadius: 8, padding: '0 10px', color: D.muted, fontFamily: sans, fontSize: 11, cursor: 'pointer' }}>
                       {showOpenaiKey ? 'Hide' : 'Show'}
                     </button>
                     <button onClick={() => handleSaveKey('openai')} disabled={!openaiKey || keysSaving === 'openai'} style={{
-                      padding: '8px 14px', borderRadius: 6, border: 'none', background: '#4ade80', color: '#052e16',
-                      fontFamily: mono, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      padding: '10px 16px', borderRadius: 8, border: 'none', background: D.accent, color: '#000',
+                      fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                       opacity: !openaiKey || keysSaving === 'openai' ? 0.5 : 1,
                     }}>{keysSaving === 'openai' ? '...' : 'Save'}</button>
                   </div>
                 )}
               </div>
 
-              <p style={{ fontFamily: mono, fontSize: 9, color: '#333', textAlign: 'center', lineHeight: 1.6 }}>
-                When you use your own API key, AI analysis costs are charged directly to your account — not XAtlas. Keys are encrypted at rest and never shared.
+              <p style={{ fontFamily: sans, fontSize: 11, color: D.muted, textAlign: 'center', lineHeight: 1.6 }}>
+                Your API keys are encrypted at rest. AI costs are billed directly by your provider — XAtlas has no markup.
               </p>
             </>
           ) : (
             <div style={{ position: 'relative' }}>
               <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>Anthropic Claude</label>
+                  <label style={{ fontFamily: sans, fontSize: 13, color: D.muted, display: 'block', marginBottom: 6 }}>Anthropic Claude</label>
                   <input type="password" disabled placeholder="sk-ant-..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
                 </div>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontFamily: mono, fontSize: 10, color: '#666', display: 'block', marginBottom: 6 }}>OpenAI GPT-4</label>
+                  <label style={{ fontFamily: sans, fontSize: 13, color: D.muted, display: 'block', marginBottom: 6 }}>OpenAI GPT-4</label>
                   <input type="password" disabled placeholder="sk-..." style={{ ...inputStyle, cursor: 'not-allowed' }} />
                 </div>
               </div>
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                <p style={{ fontFamily: mono, fontSize: 11, color: '#888', textAlign: 'center' }}>API Keys require Pro or free trial</p>
-                <a href="/#pricing" style={{ padding: '8px 20px', borderRadius: 6, background: '#4ade80', color: '#052e16', fontFamily: mono, fontSize: 10, fontWeight: 700, textDecoration: 'none' }}>Start free trial</a>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                <p style={{ fontFamily: sans, fontSize: 12, color: D.muted, textAlign: 'center' }}>API Keys require Pro</p>
+                <a href="/#pricing" style={{ padding: '8px 20px', borderRadius: 8, background: D.accent, color: '#000', fontFamily: sans, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>Upgrade to Pro</a>
               </div>
             </div>
           )}
         </Section>
 
+        {/* Sign out */}
+        <button onClick={signOut} style={{
+          width: '100%', padding: 12, borderRadius: 8,
+          border: `1px solid ${D.border}`, background: 'none',
+          color: D.muted, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          marginBottom: 16,
+        }}>
+          Sign Out
+        </button>
+
         {/* Danger zone */}
         <Section title="Danger Zone">
           {!deleteConfirm ? (
             <button onClick={() => setDeleteConfirm(true)} style={{
-              width: '100%', padding: 10, borderRadius: 8,
-              border: '1px solid rgba(248,113,113,0.2)', background: 'rgba(248,113,113,0.05)',
-              color: '#f87171', fontFamily: mono, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              width: '100%', padding: 12, borderRadius: 8,
+              border: `1px solid ${D.red}30`, background: `${D.red}08`,
+              color: D.red, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}>
-              Delete account
+              Delete Account
             </button>
           ) : (
-            <div style={{ background: 'rgba(248,113,113,0.05)', borderRadius: 8, padding: 16, border: '1px solid rgba(248,113,113,0.2)' }}>
-              <p style={{ fontFamily: mono, fontSize: 12, color: '#f87171', fontWeight: 600, marginBottom: 8 }}>
+            <div style={{ background: `${D.red}08`, borderRadius: 8, padding: 16, border: `1px solid ${D.red}30` }}>
+              <p style={{ fontFamily: sans, fontSize: 14, color: D.red, fontWeight: 700, marginBottom: 8 }}>
                 Are you sure?
               </p>
-              <p style={{ fontFamily: mono, fontSize: 11, color: '#888', lineHeight: 1.6, marginBottom: 14 }}>
+              <p style={{ fontFamily: sans, fontSize: 13, color: D.muted, lineHeight: 1.6, marginBottom: 14 }}>
                 This will permanently delete your account, profile, and all data. This action cannot be undone.
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setDeleteConfirm(false)} style={{
-                  flex: 1, padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'transparent', color: '#888', fontFamily: mono, fontSize: 11, cursor: 'pointer',
+                  flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${D.border}`,
+                  background: 'transparent', color: D.muted, fontFamily: sans, fontSize: 13, cursor: 'pointer',
                 }}>
                   Cancel
                 </button>
                 <button onClick={handleDeleteAccount} disabled={deleteLoading} style={{
-                  flex: 1, padding: 10, borderRadius: 8, border: 'none',
-                  background: '#f87171', color: '#fff', fontFamily: mono, fontSize: 11,
+                  flex: 1, padding: 12, borderRadius: 8, border: 'none',
+                  background: D.red, color: '#fff', fontFamily: sans, fontSize: 13,
                   fontWeight: 700, cursor: deleteLoading ? 'wait' : 'pointer', opacity: deleteLoading ? 0.6 : 1,
                 }}>
-                  {deleteLoading ? 'Deleting...' : 'Delete forever'}
+                  {deleteLoading ? 'Deleting...' : 'Delete Forever'}
                 </button>
               </div>
             </div>
