@@ -1998,6 +1998,31 @@ export default function PWAApp() {
             }}>✕</button>
           </div>
 
+          {/* Panel toggle bar */}
+          <div style={{ display: 'flex', gap: 6, padding: '10px 16px', borderBottom: `1px solid ${D.border}`, flexWrap: 'wrap' }}>
+            {layout.panels.map(panel => {
+              const icons: Record<string, string> = { chart: '📈', scores: '⚡', options: '📊', ai: '✦', news: '📰' }
+              const labels: Record<string, string> = { chart: 'Chart', scores: 'Scores', options: 'Options', ai: 'AI', news: 'News' }
+              return (
+                <button key={panel.id} onClick={() => {
+                  const updated = layout.panels.map(p => p.id === panel.id ? { ...p, visible: !p.visible } : p)
+                  handleLayoutChange({ ...layout, panels: updated })
+                }} style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                  background: panel.visible ? `${D.accent}20` : D.surface,
+                  color: panel.visible ? D.accent : D.muted,
+                  fontFamily: D.sans, fontSize: 11, fontWeight: 700,
+                  border: `1px solid ${panel.visible ? `${D.accent}40` : D.border}`,
+                  transition: 'all 0.15s',
+                }}>
+                  <span>{icons[panel.id] ?? '□'}</span>
+                  <span>{labels[panel.id] ?? panel.id}</span>
+                </button>
+              )
+            })}
+          </div>
+
           {/* Panel content — ordered by layout config */}
           <div style={{ padding: '20px 24px', flex: 1 }}>
             {[...layout.panels].sort((a, b) => a.order - b.order).map(panel => {
@@ -2195,27 +2220,6 @@ export default function PWAApp() {
                 padding: '2px 6px', borderRadius: 4, border: 'none', background: 'transparent',
                 color: D.muted, cursor: 'pointer', fontSize: 14, lineHeight: 1,
               }}>+</button>
-            </div>
-          )}
-
-          {/* Quick panel toggles */}
-          {!isMobile && (
-            <div style={{ display: 'flex', gap: 2, alignItems: 'center', padding: '2px 6px', background: D.surface, borderRadius: 6, border: `1px solid ${D.border}` }}>
-              {layout.panels.map(panel => {
-                const icons: Record<string, string> = { chart: '📈', scores: '⚡', options: '📊', ai: '✦', news: '📰' }
-                return (
-                  <button key={panel.id} onClick={() => {
-                    const updated = layout.panels.map(p => p.id === panel.id ? { ...p, visible: !p.visible } : p)
-                    handleLayoutChange({ ...layout, panels: updated })
-                  }} title={DETAIL_PANELS.find(p => p.id === panel.id)?.label} style={{
-                    width: 24, height: 24, borderRadius: 4, border: 'none',
-                    background: panel.visible ? `${D.accent}20` : 'transparent',
-                    color: panel.visible ? D.accent : D.muted,
-                    cursor: 'pointer', fontSize: 11, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
-                  }}>{icons[panel.id] ?? '□'}</button>
-                )
-              })}
             </div>
           )}
 
