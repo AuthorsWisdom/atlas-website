@@ -22,3 +22,13 @@ bash ~/projects/nexus-protocol/scripts/search-decisions.sh "your query"
 ```bash
 bash ~/projects/nexus-protocol/scripts/end-session.sh xatlas-website
 ```
+
+## Elite Workflow SOP
+See: ~/projects/nexus-protocol/core/ELITE_WORKFLOW.md
+
+Key rules:
+- 20-minute rule: no progress in 20 min → STOP, run 5-Why, change strategy
+- Provider status first when multiple things break simultaneously
+- One change at a time: make → verify → commit → repeat
+- Pre-flight: pwd + health check + cat LOCKED.md before every session
+- Stability before features: health check green before any new work
