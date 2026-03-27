@@ -56,6 +56,36 @@ interface PortfolioData {
 }
 type Tab = 'scanner' | 'macro' | 'watchlist' | 'news' | 'settings'
 
+// ── Source Badges ──
+const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
+  polygon: { label: 'Polygon', color: '#7B61FF' },
+  polygon_options_developer: { label: 'Polygon', color: '#7B61FF' },
+  binance: { label: 'Binance', color: '#F0B90B' },
+  finnhub: { label: 'Finnhub', color: '#00C896' },
+  alpaca: { label: 'Alpaca', color: '#4F8EF7' },
+  iex: { label: 'IEX', color: '#4F8EF7' },
+  fred: { label: 'FRED', color: '#E8C87A' },
+  fallback: { label: 'Fallback', color: '#4A5575' },
+}
+
+function SourceBadge({ source, delayed }: { source?: string; delayed?: boolean }) {
+  if (!source) return null
+  const key = source.toLowerCase()
+  const cfg = SOURCE_CONFIG[key] ?? SOURCE_CONFIG[key.split('_')[0]] ?? { label: source, color: '#4A5575' }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '1px 6px', borderRadius: 10,
+      background: `${cfg.color}12`, border: `1px solid ${cfg.color}30`,
+      fontSize: 9, fontFamily: D.sans, fontWeight: 700,
+      color: cfg.color, letterSpacing: 0.3, textTransform: 'uppercase',
+    }}>
+      <span style={{ width: 4, height: 4, borderRadius: '50%', background: cfg.color }} />
+      {cfg.label}{delayed ? ' 15m' : ''}
+    </span>
+  )
+}
+
 // ── Layout System ──
 const FONT_SIZES = {
   small:  { base: 11, price: 16, symbol: 14, label: 10 },
@@ -1932,6 +1962,28 @@ export default function PWAApp() {
               <LayoutEditor layout={layout} onChange={handleLayoutChange} />
             </div>
 
+            {/* Data Sources — full width */}
+            <div style={{ ...cardStyle, ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
+              <div style={labelStyle}>Data Sources</div>
+              {[
+                { label: 'Stock Prices', source: 'polygon', note: '' },
+                { label: 'Crypto Prices', source: 'binance', note: '' },
+                { label: 'Options & GEX', source: 'polygon', note: '15 min delayed' },
+                { label: 'Charts', source: 'polygon', note: '' },
+                { label: 'Macro Indicators', source: 'fred', note: '' },
+                { label: 'Stock Fallback', source: 'alpaca', note: 'standby' },
+                { label: 'News', source: 'finnhub', note: '' },
+              ].map(item => (
+                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${D.border}` }}>
+                  <span style={{ fontSize: 13, color: D.text, fontFamily: D.sans }}>{item.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {item.note && <span style={{ fontSize: 10, color: D.muted, fontFamily: D.mono }}>{item.note}</span>}
+                    <SourceBadge source={item.source} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Legal — full width */}
             <div style={{ ...cardStyle, ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
               <div style={labelStyle}>Legal</div>
@@ -2072,13 +2124,16 @@ export default function PWAApp() {
                     <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
                       <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Score Breakdown</div>
                       {[
-                        { l: 'Squeeze', v: scores[sym].squeeze_score },
-                        { l: 'Options Flow', v: scores[sym].options_flow_score },
-                        { l: 'Macro', v: scores[sym].macro_score },
+                        { l: 'Squeeze', v: scores[sym].squeeze_score, src: 'polygon' },
+                        { l: 'Options Flow', v: scores[sym].options_flow_score, src: 'polygon' },
+                        { l: 'Macro', v: scores[sym].macro_score, src: 'fred' },
                       ].map(b => (
                         <div key={b.l} style={{ marginBottom: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>{b.l}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>{b.l}</span>
+                              <SourceBadge source={b.src} />
+                            </div>
                             <span style={{ fontFamily: D.mono, fontSize: 12, color: tierColor(b.v ?? 50) }}>{b.v ?? '—'}</span>
                           </div>
                           <div style={{ height: 4, borderRadius: 2, background: D.border, overflow: 'hidden' }}>
