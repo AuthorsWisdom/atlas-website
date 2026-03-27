@@ -897,6 +897,13 @@ const PROVIDER_NAMES: Record<string, string> = {
 const PROVIDER_DEFAULTS: Record<string, string> = {
   anthropic: 'claude-sonnet-4-5-20250514', openai: 'gpt-4o', xai: 'grok-beta', google: 'gemini-1.5-pro', mistral: 'mistral-large-latest',
 }
+const PROVIDER_MODELS: Record<string, string[]> = {
+  anthropic: ['claude-sonnet-4-5-20250514', 'claude-opus-4-5-20251001', 'claude-haiku-4-5-20251001'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+  xai: ['grok-beta', 'grok-2'],
+  google: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash-exp'],
+  mistral: ['mistral-large-latest', 'mistral-medium', 'open-mistral-7b'],
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ResponseCard({ response }: { response: any }) {
@@ -2442,142 +2449,138 @@ export default function PWAApp() {
         {tab === 'settings' && renderSettings()}
       </main>
 
-      {/* ── AI COUNCIL PANEL ── */}
+      {/* ── AI COUNCIL — HORIZONTAL MULTI-WINDOW ── */}
       {councilOpen && !isMobile && (() => {
         const activeProviders = Object.entries(providerKeys).filter(([, k]) => k?.trim().length > 0)
+        const sym = selectedTicker || 'SPY'
+        const buildMD = () => ({ conviction: scores[sym] || {}, options: {}, gex: {}, iv: {}, macro: {}, max_pain: {}, quote: liveQuotes[sym] || {} })
 
-        const runCouncil = async () => {
-          if (!councilQuestion.trim() || activeProviders.length === 0) return
+        const sendToAll = async () => {
+          if (!councilQuestion.trim() || councilLoading || activeProviders.length === 0) return
+          const question = councilQuestion.trim()
+          setCouncilQuestion('')
           setCouncilLoading(true)
-          setCouncilResult(null)
-          const sym = selectedTicker || 'SPY'
-          const marketData = {
-            conviction: scores[sym] || {},
-            options: scores[sym] || {},
-            gex: scores[sym] || {},
-            iv: {},
-            macro: {},
-            max_pain: {},
-            quote: liveQuotes[sym] || {},
-          }
-          try {
-            const endpoint = councilMode === 'debate' ? '/api/council/debate' : '/api/council/parallel'
-            const res = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-User-ID': user?.id ?? '' },
-              body: JSON.stringify({
-                symbol: sym, question: councilQuestion, market_data: marketData,
-                providers: activeProviders.map(([pid, key]) => ({ provider: pid, api_key: key, model: PROVIDER_DEFAULTS[pid] })),
-                mode: councilMode, user_id: user?.id ?? '',
-              }),
-            })
-            setCouncilResult(await res.json())
-          } catch (e) { console.error('[council]', e) }
-          finally { setCouncilLoading(false) }
+          const md = buildMD()
+
+          // Add user message to all windows
+          setCouncilResult((prev: any) => {
+            const h = { ...(prev?.history ?? {}) }
+            activeProviders.forEach(([pid]) => { h[pid] = [...(h[pid] ?? []), { role: 'user', content: question }] })
+            return { ...prev, history: h }
+          })
+
+          // Fire all providers simultaneously
+          await Promise.all(activeProviders.map(async ([pid, key]) => {
+            const model = PROVIDER_DEFAULTS[pid]
+            try {
+              const res = await fetch('/api/council/single', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: sym, question, market_data: md, provider: pid, api_key: key, model, user_id: user?.id ?? '' }),
+              })
+              const data = await res.json()
+              const text = data?.result?.response ?? data?.result?.error ?? `Error ${res.status}`
+              const isErr = !!data?.result?.error
+              setCouncilResult((prev: any) => ({
+                ...prev, history: { ...(prev?.history ?? {}), [pid]: [...((prev?.history ?? {})[pid] ?? []), { role: 'assistant', content: text, model, error: isErr }] },
+              }))
+            } catch (e: any) {
+              setCouncilResult((prev: any) => ({
+                ...prev, history: { ...(prev?.history ?? {}), [pid]: [...((prev?.history ?? {})[pid] ?? []), { role: 'assistant', content: `Network error: ${e.message}`, error: true }] },
+              }))
+            }
+          }))
+          setCouncilLoading(false)
         }
 
+        if (activeProviders.length === 0) {
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: D.bg, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              <div style={{ fontSize: 14, color: D.muted, fontFamily: D.sans }}>No API keys configured. Add keys in Settings.</div>
+              <button onClick={() => { setCouncilOpen(false); setTab('settings' as Tab) }} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontWeight: 700, cursor: 'pointer' }}>Go to Settings</button>
+              <button onClick={() => setCouncilOpen(false)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontFamily: D.sans, fontSize: 12 }}>Close</button>
+            </div>
+          )
+        }
+
+        const history = (councilResult?.history ?? {}) as Record<string, Array<{ role: string; content: string; model?: string; error?: boolean }>>
+
         return (
-          <div style={{ position: 'fixed', top: 48, right: 0, bottom: 0, width: 520, background: '#080A0E', borderLeft: `1px solid ${D.border}`, display: 'flex', flexDirection: 'column', zIndex: 400, overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 15, color: D.text }}>AI Council</div>
-                <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, marginTop: 2 }}>{selectedTicker ?? 'No ticker'} &middot; {activeProviders.length} model{activeProviders.length !== 1 ? 's' : ''}</div>
+          <div style={{ position: 'fixed', inset: 0, background: D.bg, zIndex: 400, display: 'flex', flexDirection: 'column' }}>
+            {/* Top bar */}
+            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <button onClick={() => setCouncilOpen(false)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>←</button>
+              <div style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 15, color: D.text }}>AI Council</div>
+              {selectedTicker && scores[selectedTicker] && (
+                <div style={{ padding: '3px 10px', borderRadius: 12, background: D.surface, border: `1px solid ${D.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: D.mono, fontSize: 12, fontWeight: 700, color: D.text }}>{selectedTicker}</span>
+                  <span style={{ fontSize: 10, color: D.accent, fontFamily: D.sans }}>{scores[selectedTicker].conviction}/100</span>
+                  <span style={{ fontSize: 9, color: D.muted, fontFamily: D.sans }}>auto-injected</span>
+                </div>
+              )}
+              <div style={{ marginLeft: 'auto' }}>
+                <button onClick={() => setCouncilResult(null)} style={{ padding: '4px 10px', borderRadius: 6, background: D.surface, border: `1px solid ${D.border}`, color: D.muted, fontFamily: D.sans, fontSize: 10, cursor: 'pointer' }}>Clear All</button>
               </div>
-              <button onClick={() => setCouncilOpen(false)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 20 }}>x</button>
             </div>
 
-            {/* Mode toggle */}
-            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 8 }}>
-              {(['parallel', 'debate'] as const).map(mode => (
-                <button key={mode} onClick={() => setCouncilMode(mode)} style={{
-                  padding: '5px 12px', borderRadius: 8, border: `1px solid ${councilMode === mode ? D.accent : D.border}`,
-                  background: councilMode === mode ? D.accent : 'transparent',
-                  color: councilMode === mode ? '#000' : D.muted,
-                  fontFamily: D.sans, fontWeight: 700, fontSize: 11, cursor: 'pointer',
-                }}>{mode === 'parallel' ? 'Parallel' : 'Debate'}</button>
-              ))}
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: D.muted, fontFamily: D.sans, alignSelf: 'center' }}>
-                {councilMode === 'parallel' ? 'All respond at once' : '3-round debate'}
-              </span>
-            </div>
-
-            {/* Provider pills */}
-            <div style={{ padding: '8px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-              {Object.entries(PROVIDER_NAMES).map(([pid, name]) => {
-                const active = providerKeys[pid]?.trim().length > 0
-                const color = PROVIDER_COLORS[pid]
+            {/* Horizontal windows */}
+            <div style={{ flex: 1, display: 'flex', gap: 1, overflow: 'hidden', minHeight: 0 }}>
+              {activeProviders.map(([pid], idx) => {
+                const color = PROVIDER_COLORS[pid] ?? D.muted
+                const name = PROVIDER_NAMES[pid] ?? pid
+                const msgs = history[pid] ?? []
                 return (
-                  <div key={pid} style={{ padding: '3px 8px', borderRadius: 12, background: active ? `${color}20` : D.surface, border: `1px solid ${active ? color + '50' : D.border}`, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: active ? color : D.muted }} />
-                    <span style={{ fontSize: 10, fontFamily: D.sans, fontWeight: 700, color: active ? color : D.muted }}>{name}</span>
+                  <div key={pid} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: idx < activeProviders.length - 1 ? `1px solid ${D.border}` : 'none', minWidth: 0 }}>
+                    {/* Window header */}
+                    <div style={{ padding: '8px 12px', background: D.surface, borderBottom: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}` }} />
+                        <span style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 12, color }}>{name}</span>
+                      </div>
+                      <select defaultValue={PROVIDER_DEFAULTS[pid]} style={{ background: D.bg, border: `1px solid ${D.border}`, borderRadius: 4, color: D.muted, fontFamily: D.sans, fontSize: 9, padding: '1px 4px', cursor: 'pointer', outline: 'none' }}>
+                        {(PROVIDER_MODELS[pid] ?? []).map((m: string) => <option key={m} value={m}>{m.length > 22 ? m.slice(0, 22) + '...' : m}</option>)}
+                      </select>
+                    </div>
+                    {/* Messages */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
+                      {msgs.length === 0 && <div style={{ textAlign: 'center', paddingTop: 40, color: D.muted, fontFamily: D.sans, fontSize: 11 }}>{name} ready. Ask below.</div>}
+                      {msgs.map((msg, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                          <div style={{
+                            maxWidth: '92%', padding: '8px 12px',
+                            borderRadius: msg.role === 'user' ? '12px 12px 3px 12px' : '12px 12px 12px 3px',
+                            background: msg.role === 'user' ? D.border : msg.error ? '#2A0A0A' : `${color}12`,
+                            border: msg.role === 'assistant' ? `1px solid ${msg.error ? `${D.red}40` : `${color}25`}` : 'none',
+                          }}>
+                            <div style={{ fontSize: 12, fontFamily: D.sans, lineHeight: 1.6, color: msg.error ? D.red : D.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</div>
+                          </div>
+                          {msg.role === 'assistant' && msg.model && <div style={{ fontSize: 8, color: D.muted, fontFamily: D.mono, marginTop: 2, marginLeft: 4 }}>{msg.model}</div>}
+                        </div>
+                      ))}
+                      {councilLoading && <div style={{ display: 'flex', gap: 3, padding: '6px 4px' }}>{[0, 1, 2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: color, opacity: 0.6 }} />)}</div>}
+                    </div>
                   </div>
                 )
               })}
             </div>
 
-            {/* Responses area */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-              {councilLoading && (
-                <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                  <div style={{ color: D.accent, fontFamily: D.sans, fontSize: 13, marginBottom: 8 }}>
-                    {councilMode === 'debate' ? 'Debate in progress...' : 'Querying all models...'}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
-                    {activeProviders.map(([pid]) => (
-                      <div key={pid} style={{ width: 8, height: 8, borderRadius: '50%', background: PROVIDER_COLORS[pid] }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {!councilLoading && councilResult?.mode === 'parallel' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {councilResult.responses?.map((r: any, i: number) => <ResponseCard key={i} response={r} />)}
-                </div>
-              )}
-
-              {!councilLoading && councilResult?.mode === 'debate' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${D.border}` }}>Round 1 — Independent</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{councilResult.round1?.map((r: any, i: number) => <ResponseCard key={i} response={r} />)}</div>
-                  </div>
-                  {councilResult.round2?.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${D.border}` }}>Round 2 — Challenge</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{councilResult.round2.map((r: any, i: number) => <ResponseCard key={i} response={r} />)}</div>
-                    </div>
-                  )}
-                  {councilResult.synthesis && (
-                    <div style={{ background: D.surface, borderRadius: 12, padding: 20, border: `1px solid ${D.accent}40` }}>
-                      <div style={{ fontSize: 11, color: D.accent, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 10 }}>Synthesis — {PROVIDER_NAMES[councilResult.synthesis.provider] ?? 'AI'}</div>
-                      <div style={{ fontSize: 13, color: D.text, fontFamily: D.sans, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{councilResult.synthesis.response ?? councilResult.synthesis.error}</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!councilLoading && !councilResult && (
-                <div style={{ textAlign: 'center', padding: '60px 0', color: D.muted, fontFamily: D.sans, fontSize: 13 }}>
-                  {activeProviders.length === 0
-                    ? 'Add API keys in Settings to activate the council.'
-                    : `Ask the council about ${selectedTicker ?? 'the market'}. Context auto-injected.`}
-                </div>
-              )}
-            </div>
-
-            {/* Input */}
-            <div style={{ padding: '14px 20px', borderTop: `1px solid ${D.border}`, display: 'flex', gap: 8 }}>
-              <input value={councilQuestion} onChange={e => setCouncilQuestion(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && runCouncil()}
-                placeholder={`Ask about ${selectedTicker ?? 'the market'}...`}
-                disabled={councilLoading || activeProviders.length === 0}
-                style={{ flex: 1, padding: '10px 14px', background: D.surface, border: `1px solid ${D.border}`, borderRadius: 8, color: D.text, fontSize: 13, fontFamily: D.sans, outline: 'none' }} />
-              <button onClick={runCouncil} disabled={councilLoading || !councilQuestion.trim() || activeProviders.length === 0}
-                style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: councilLoading ? 0.5 : 1 }}>
-                {councilMode === 'parallel' ? 'Ask' : 'Debate'}
-              </button>
+            {/* Shared query bar */}
+            <div style={{ padding: '10px 16px', borderTop: `1px solid ${D.border}`, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+                {activeProviders.map(([pid]) => (
+                  <span key={pid} style={{ fontSize: 9, fontFamily: D.sans, fontWeight: 700, color: PROVIDER_COLORS[pid], padding: '1px 6px', background: `${PROVIDER_COLORS[pid]}12`, borderRadius: 8, border: `1px solid ${PROVIDER_COLORS[pid]}25` }}>{PROVIDER_NAMES[pid]}</span>
+                ))}
+                <span style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, alignSelf: 'center', marginLeft: 4 }}>sends to all</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={councilQuestion} onChange={e => setCouncilQuestion(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendToAll() } }}
+                  placeholder={`Ask all ${activeProviders.length} models about ${sym}...`} disabled={councilLoading}
+                  style={{ flex: 1, padding: '10px 14px', background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, color: D.text, fontSize: 13, fontFamily: D.sans, outline: 'none' }} />
+                <button onClick={sendToAll} disabled={councilLoading || !councilQuestion.trim()}
+                  style={{ padding: '0 18px', borderRadius: 10, border: 'none', background: councilLoading ? D.border : D.accent, color: councilLoading ? D.muted : '#000', fontFamily: D.sans, fontWeight: 800, fontSize: 16, cursor: councilLoading ? 'not-allowed' : 'pointer' }}>
+                  {councilLoading ? '...' : '↑'}
+                </button>
+              </div>
             </div>
           </div>
         )
