@@ -12,6 +12,7 @@ interface FlowData {
   total_call_volume: number
   total_put_volume: number
   unusual_activity: UnusualContract[]
+  error?: string
 }
 
 interface UnusualContract {
