@@ -523,6 +523,8 @@ export default function PWAApp() {
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState('claude-sonnet-4-5')
   const [selectedOpenAIModel, setSelectedOpenAIModel] = useState('gpt-4o-mini')
   const [preferredProvider, setPreferredProvider] = useState('anthropic')
+  const [scores, setScores] = useState<Record<string, { conviction: number; squeeze_score: number; options_flow_score: number; macro_score: number; tier: string }>>({})
+  const scoreTimestamps = useRef<Record<string, number>>({})
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -543,6 +545,44 @@ export default function PWAApp() {
     setQuotes(prev => ({ ...prev, ...map }))
     setLastUpdated(new Date())
   }, [])
+
+  const fetchScore = useCallback(async (symbol: string) => {
+    const now = Date.now()
+    if (now - (scoreTimestamps.current[symbol] ?? 0) < 60000) return
+    scoreTimestamps.current[symbol] = now
+    try {
+      const res = await fetch(`${BACKEND}/score/${symbol}`, {
+        headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' },
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.conviction != null) {
+        const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
+        setScores(prev => ({
+          ...prev,
+          [symbol]: {
+            conviction: data.conviction,
+            squeeze_score: normSignal(data.squeeze_score),
+            options_flow_score: normSignal(data.options_flow_score),
+            macro_score: data.components?.macro?.risk_on_score ?? 0,
+            tier: data.tier ?? 'NOISE',
+          },
+        }))
+      }
+    } catch { /* don't block on score errors */ }
+  }, [isPro, user?.id])
+
+  // Fetch scores for watchlist symbols
+  useEffect(() => {
+    if (!isPro || !watchlist.length) return
+    watchlist.forEach(sym => fetchScore(sym))
+  }, [isPro, watchlist, fetchScore])
+
+  // Fetch score when ticker selected
+  useEffect(() => {
+    if (!selectedTicker) return
+    fetchScore(selectedTicker)
+  }, [selectedTicker, fetchScore])
 
   useEffect(() => {
     if (!user) { setWatchlist([]); return }
@@ -674,7 +714,7 @@ export default function PWAApp() {
     setChatMessages(prev => [...prev, userMsg])
 
     const context = [
-      selectedTicker && quotes[selectedTicker] ? `${selectedTicker} conviction score: ${quotes[selectedTicker].conviction}/100` : null,
+      selectedTicker && scores[selectedTicker] ? `${selectedTicker} conviction score: ${scores[selectedTicker].conviction}/100` : null,
       macro?.regime ? `Current macro regime: ${macro.regime}` : null,
       watchlist.length > 0 ? `User watchlist: ${watchlist.join(', ')}` : null,
     ].filter(Boolean).join('\n')
@@ -813,23 +853,6 @@ export default function PWAApp() {
         ...prev,
         [sym]: { loading: false, text: data.summary ?? `Conviction: ${data.conviction}/100. ${data.regime ?? ''}`, factors: factors.slice(0, 6) },
       }))
-      // Merge conviction + breakdown scores into quotes so the ring/bars update
-      if (data.conviction != null) {
-        // Backend returns squeeze_score/options_flow_score as -1/0/1 signals
-        // Normalize to 0-100 for the bars: -1→10, 0→50, 1→90
-        const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
-        setQuotes(prev => prev[sym] ? ({
-          ...prev,
-          [sym]: {
-            ...prev[sym],
-            conviction: data.conviction,
-            squeeze_score: normSignal(data.squeeze_score),
-            options_flow_score: normSignal(data.options_flow_score),
-            macro_score: data.components?.macro?.risk_on_score ?? prev[sym].macro_score,
-            regime: data.tier ?? prev[sym].regime,
-          },
-        }) : prev)
-      }
     } catch {
       setAIData(prev => ({ ...prev, [sym]: { loading: false, text: 'Analysis unavailable', factors: [] } }))
     }
@@ -1041,7 +1064,7 @@ export default function PWAApp() {
               {symbols.map(symbol => {
                 const quote = getQuote(symbol)
                 const isUp = (quote?.change_percent ?? 0) >= 0
-                const conviction = quote?.conviction ?? 0
+                const conviction = scores[symbol]?.conviction ?? 0
                 return (
                   <tr key={symbol}
                     onClick={() => setSelectedTicker(symbol)}
@@ -1100,7 +1123,7 @@ export default function PWAApp() {
             {symbols.map(symbol => {
               const quote = getQuote(symbol)
               const isUp = (quote?.change_percent ?? 0) >= 0
-              const conviction = quote?.conviction ?? 0
+              const conviction = scores[symbol]?.conviction ?? 0
               return (
                 <div key={symbol} onClick={() => setSelectedTicker(symbol)} style={{
                   background: D.surface, borderRadius: 10, padding: '14px 16px',
@@ -1331,7 +1354,7 @@ export default function PWAApp() {
             {watchlist.map(sym => {
               const d = getQuote(sym)
               const isUp = (d?.change_percent ?? 0) >= 0
-              const conviction = d?.conviction ?? 0
+              const conviction = scores[sym]?.conviction ?? 0
               return (
                 <div key={sym} onClick={() => setSelectedTicker(sym)} style={{
                   background: D.surface, borderRadius: 12, padding: 20, border: `1px solid ${D.border}`,
@@ -1598,30 +1621,30 @@ export default function PWAApp() {
               <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
                 <svg width="56" height="56" viewBox="0 0 56 56">
                   <circle cx="28" cy="28" r="24" fill="none" stroke={D.border} strokeWidth="4" />
-                  <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(d?.conviction ?? 0)} strokeWidth="4"
-                    strokeDasharray={`${(d?.conviction ?? 0) * 1.508} 999`}
+                  <circle cx="28" cy="28" r="24" fill="none" stroke={tierColor(scores[sym]?.conviction ?? 0)} strokeWidth="4"
+                    strokeDasharray={`${(scores[sym]?.conviction ?? 0) * 1.508} 999`}
                     strokeLinecap="round" transform="rotate(-90 28 28)" />
                 </svg>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: D.mono, fontSize: 16, fontWeight: 700, color: tierColor(d?.conviction ?? 0) }}>
-                  {d?.conviction ?? '—'}
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: D.mono, fontSize: 16, fontWeight: 700, color: tierColor(scores[sym]?.conviction ?? 0) }}>
+                  {scores[sym]?.conviction ?? '—'}
                 </div>
               </div>
               <div>
                 <div style={{ fontFamily: D.sans, fontSize: 14, fontWeight: 700, color: D.text }}>
-                  {(d?.conviction ?? 0) >= 75 ? 'STRONG' : (d?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
+                  {(scores[sym]?.conviction ?? 0) >= 75 ? 'STRONG' : (scores[sym]?.conviction ?? 0) >= 50 ? 'MODERATE' : 'NOISE'}
                 </div>
                 <div style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginTop: 2 }}>Conviction Score</div>
               </div>
             </div>
 
             {/* Score breakdown — Pro */}
-            {isPro && d ? (
+            {isPro && scores[sym] ? (
               <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
                 <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Score Breakdown</div>
                 {[
-                  { l: 'Squeeze', v: d.squeeze_score },
-                  { l: 'Options Flow', v: d.options_flow_score },
-                  { l: 'Macro', v: d.macro_score },
+                  { l: 'Squeeze', v: scores[sym].squeeze_score },
+                  { l: 'Options Flow', v: scores[sym].options_flow_score },
+                  { l: 'Macro', v: scores[sym].macro_score },
                 ].map(b => (
                   <div key={b.l} style={{ marginBottom: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
