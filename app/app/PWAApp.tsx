@@ -1042,11 +1042,17 @@ export default function PWAApp() {
       .then(({ data }) => { if (data) setWatchlist(data.map((r: { symbol: string }) => r.symbol)) }, () => {})
   }, [user])
 
-  // Load layout + workspaces from Supabase
+  // Load layout + workspaces from Supabase (safe — columns may not exist yet)
   useEffect(() => {
     if (!user) return
-    getSupabase().from('profiles').select('layout_config, workspaces, active_workspace').eq('id', user.id).single()
-      .then(({ data }) => {
+    getSupabase().from('profiles').select('layout_config, workspaces, active_workspace').eq('id', user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          // Columns may not exist — try layout_config only
+          getSupabase().from('profiles').select('layout_config').eq('id', user.id).maybeSingle()
+            .then(({ data: d2 }) => { if (d2?.layout_config) setLayout(d2.layout_config) })
+          return
+        }
         if (data?.layout_config) setLayout(data.layout_config)
         if (data?.workspaces) setWorkspaces(data.workspaces)
         if (data?.active_workspace) setActiveWorkspace(data.active_workspace)
@@ -1059,7 +1065,7 @@ export default function PWAApp() {
     clearTimeout(saveLayoutRef.current)
     saveLayoutRef.current = setTimeout(() => {
       getSupabase().from('profiles').update({ layout_config: newLayout }).eq('id', user.id)
-        .then(() => console.log('[layout] saved to Supabase'))
+        .then(({ error }) => { if (!error) console.log('[layout] saved') })
     }, 1000)
   }, [user])
 
@@ -1070,6 +1076,7 @@ export default function PWAApp() {
     handleLayoutChange(ws.layout)
     if (!user) return
     getSupabase().from('profiles').update({ active_workspace: wsId }).eq('id', user.id)
+      .then(() => {})
   }, [workspaces, handleLayoutChange, user])
 
   const saveCurrentAsWorkspace = useCallback(() => {
@@ -1081,6 +1088,7 @@ export default function PWAApp() {
     setActiveWorkspace(newWs.id)
     if (!user) return
     getSupabase().from('profiles').update({ workspaces: updated, active_workspace: newWs.id }).eq('id', user.id)
+      .then(() => {})
   }, [layout, workspaces, user])
 
   useEffect(() => {
