@@ -851,6 +851,11 @@ export default function PWAApp() {
   }, [])
 
   const fetchScore = useCallback(async (symbol: string, retries = 2) => {
+    // Don't fetch until profile is loaded — avoids caching free-tier result for Pro users
+    if (!profile) {
+      console.log(`[fetchScore] ${symbol} skipped — profile not loaded yet`)
+      return
+    }
     const now = Date.now()
     if (now - (scoreTimestamps.current[symbol] ?? 0) < 60000) {
       console.log(`[fetchScore] ${symbol} skipped — TTL not expired`)
@@ -878,6 +883,13 @@ export default function PWAApp() {
       const data = await res.json()
       console.log(`[fetchScore] ${symbol} conviction=${data.conviction} tier=${data.tier}`)
       if (data.conviction != null) {
+        // If Pro user got free tier result, don't cache — retry
+        if (isPro && data.tier === 'free') {
+          console.log(`[fetchScore] ${symbol} got free tier as Pro — will retry`)
+          delete scoreTimestamps.current[symbol]
+          if (retries > 0) setTimeout(() => fetchScore(symbol, retries - 1), 2000)
+          return
+        }
         const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
         setScores(prev => ({
           ...prev,
@@ -898,17 +910,25 @@ export default function PWAApp() {
         setTimeout(() => fetchScore(symbol, retries - 1), 3000)
       }
     }
-  }, [isPro, user?.id])
+  }, [profile, isPro, user?.id])
 
   // Fetch scores for watchlist symbols (all users see conviction numbers)
   useEffect(() => {
-    if (!watchlist.length) return
+    if (!watchlist.length || !profile) return
     watchlist.forEach((sym, i) => setTimeout(() => fetchScore(sym), i * 500))
-  }, [watchlist, fetchScore])
+  }, [watchlist, fetchScore, profile])
+
+  // When isPro flips to true, clear all TTLs and re-fetch
+  useEffect(() => {
+    if (!isPro || !watchlist.length) return
+    console.log('[scores] isPro confirmed true — clearing TTL and re-fetching all scores')
+    scoreTimestamps.current = {}
+    watchlist.forEach((sym, i) => setTimeout(() => fetchScore(sym), i * 600))
+  }, [isPro])
 
   // Fetch score when ticker selected — force fresh fetch (clear TTL)
   useEffect(() => {
-    if (!selectedTicker) return
+    if (!selectedTicker || !profile) return
     delete scoreTimestamps.current[selectedTicker]
     fetchScore(selectedTicker)
   }, [selectedTicker, fetchScore])
