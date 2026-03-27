@@ -655,6 +655,151 @@ class DashboardErrorBoundary extends React.Component<
   }
 }
 
+// ── Isolated Search Component (prevents focus loss from parent re-renders) ──
+const WatchlistSearch = memo(function WatchlistSearch({ onAdd, isPro, watchlistLength, freeLimitReached }: {
+  onAdd: (symbol: string) => void
+  isPro: boolean
+  watchlistLength: number
+  freeLimitReached: boolean
+}) {
+  const [searchInput, setSearchInput] = useState('')
+  const [searchError, setSearchError] = useState('')
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([])
+  const [sugIdx, setSugIdx] = useState(-1)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSearchInput = useCallback((val: string) => {
+    setSearchInput(val)
+    setSearchError('')
+    setSugIdx(-1)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.length < 1) { setSuggestions([]); setShowSuggestions(false); return }
+    setShowSuggestions(true)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`)
+        const { results } = await res.json()
+        setSuggestions(results ?? [])
+      } catch { setSuggestions([]) }
+    }, 300)
+  }, [])
+
+  async function addTickerDirect(sym: string) {
+    const s = sym.trim().toUpperCase()
+    if (!s) return
+    setSearchError('')
+    if (freeLimitReached) { setSearchError(`Free plan limited to ${FREE_WATCHLIST_LIMIT} symbols`); return }
+    setSearchLoading(true)
+    try {
+      const res = await fetch(`/api/validate/${s}`)
+      const data = await res.json()
+      if (!data.valid) {
+        setSearchError(data.error || 'Ticker not found')
+        setSearchLoading(false)
+        return
+      }
+      onAdd(s)
+      setSearchInput('')
+      setSuggestions([])
+      setShowSuggestions(false)
+    } catch {
+      setSearchError('Service unavailable, try again')
+    }
+    setSearchLoading(false)
+  }
+
+  function selectSuggestion(sym: string) {
+    setSearchInput(sym)
+    setShowSuggestions(false)
+    setSuggestions([])
+    addTickerDirect(sym)
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setShowSuggestions(false); return }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSugIdx(i => Math.min(i + 1, suggestions.length - 1)); return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSugIdx(i => Math.max(i - 1, -1)); return }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (sugIdx >= 0 && suggestions[sugIdx]) { selectSuggestion(suggestions[sugIdx].symbol); return }
+      addTickerDirect(searchInput)
+    }
+  }
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div ref={searchRef} style={{ position: 'relative', marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          ref={searchInputRef}
+          type="text" value={searchInput}
+          onChange={e => handleSearchInput(e.target.value.toUpperCase())}
+          onKeyDown={handleSearchKeyDown}
+          onFocus={() => { if (suggestions.length) setShowSuggestions(true) }}
+          placeholder="Search ticker or company..."
+          disabled={searchLoading}
+          style={{
+            flex: 1, padding: '8px 14px', borderRadius: 6,
+            border: `1px solid ${D.border}`, background: D.surface,
+            color: D.text, fontFamily: D.sans, fontSize: 13, outline: 'none',
+            transition: 'border-color 0.15s',
+          }}
+          onFocusCapture={e => e.currentTarget.style.borderColor = D.accent + '60'}
+          onBlurCapture={e => e.currentTarget.style.borderColor = D.border}
+        />
+        <button onClick={() => addTickerDirect(searchInput)} disabled={searchLoading || !searchInput.trim()} style={{
+          padding: '8px 18px', borderRadius: 6, border: 'none',
+          background: D.accent, color: '#000', fontFamily: D.sans,
+          fontSize: 13, fontWeight: 700, cursor: searchLoading ? 'wait' : 'pointer',
+          opacity: searchLoading || !searchInput.trim() ? 0.4 : 1, whiteSpace: 'nowrap',
+        }}>
+          {searchLoading ? '...' : 'Add'}
+        </button>
+      </div>
+      {searchError && (
+        <p style={{ fontFamily: D.sans, fontSize: 11, color: searchError.includes('limited') ? D.accentAmber : D.red, marginTop: 6 }}>{searchError}</p>
+      )}
+      {showSuggestions && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+          background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
+          overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        }}>
+          {suggestions.map((s, i) => (
+            <button key={s.symbol}
+              onClick={() => selectSuggestion(s.symbol)}
+              onMouseEnter={() => setSugIdx(i)}
+              style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                width: '100%', padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                background: i === sugIdx ? `${D.accent}10` : 'transparent',
+                transition: 'background 0.1s',
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 600, color: D.text }}>{s.symbol}</span>
+                {s.type === 'ETF' && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentBlue}15`, color: D.accentBlue, fontWeight: 600 }}>ETF</span>}
+                {s.type === 'CRYPTO' && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentAmber}15`, color: D.accentAmber, fontWeight: 600 }}>CRYPTO</span>}
+              </div>
+              <span style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, maxWidth: '50%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
 // ── Main App ──
 export default function PWAApp() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
@@ -664,12 +809,6 @@ export default function PWAApp() {
   const [macro, setMacro] = useState<MacroData | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [watchlist, setWatchlist] = useState<string[]>([])
-  const [searchInput, setSearchInput] = useState('')
-  const [searchError, setSearchError] = useState('')
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [suggestions, setSuggestions] = useState<SearchResult[]>([])
-  const [sugIdx, setSugIdx] = useState(-1)
-  const [showSuggestions, setShowSuggestions] = useState(false)
   const [expandedMacro, setExpandedMacro] = useState<string | null>(null)
   const [aiData, setAIData] = useState<Record<string, { loading: boolean; text: string; factors: string[] }>>({})
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
@@ -693,9 +832,6 @@ export default function PWAApp() {
   const [preferredProvider, setPreferredProvider] = useState('anthropic')
   const [scores, setScores] = useState<Record<string, { conviction: number; squeeze_score: number; options_flow_score: number; macro_score: number; tier: string }>>({})
   const scoreTimestamps = useRef<Record<string, number>>({})
-  const searchRef = useRef<HTMLDivElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useIsDesktop()
   const isMobile = !isDesktop
   const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
@@ -912,80 +1048,19 @@ export default function PWAApp() {
     }
   }
 
-  // ── Search autocomplete ──
-  const handleSearchInput = useCallback((val: string) => {
-    setSearchInput(val)
-    setSearchError('')
-    setSugIdx(-1)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (val.length < 1) { setSuggestions([]); setShowSuggestions(false); return }
-    setShowSuggestions(true)
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`)
-        const { results } = await res.json()
-        setSuggestions(results ?? [])
-      } catch { setSuggestions([]) }
-    }, 300)
-  }, [])
-
-  function selectSuggestion(sym: string) {
-    setSearchInput(sym)
-    setShowSuggestions(false)
-    setSuggestions([])
-    addTickerDirect(sym)
-  }
-
-  function handleSearchKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') { setShowSuggestions(false); return }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSugIdx(i => Math.min(i + 1, suggestions.length - 1)); return }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setSugIdx(i => Math.max(i - 1, -1)); return }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (sugIdx >= 0 && suggestions[sugIdx]) { selectSuggestion(suggestions[sugIdx].symbol); return }
-      addTicker()
-    }
-  }
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggestions(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
 
   // ── Watchlist CRUD ──
-  async function addTickerDirect(sym: string) {
-    const s = sym.trim().toUpperCase()
-    if (!s) return
-    setSearchError('')
-    if (watchlist.includes(s)) { setSearchError('Already in watchlist'); return }
-    if (!isPro && watchlist.length >= FREE_WATCHLIST_LIMIT) { setSearchError(`Free plan limited to ${FREE_WATCHLIST_LIMIT} symbols`); return }
-    setSearchLoading(true)
-    try {
-      const res = await fetch(`/api/validate/${s}`)
-      const data = await res.json()
-      if (!data.valid) {
-        setSearchError(data.error || 'Ticker not found')
-        setSearchLoading(false)
-        return
-      }
-      if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
-      fetch(`${BACKEND}/stream/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: s }),
-      }).catch(() => {})
-      setWatchlist(prev => [...prev, s])
-      setSearchInput('')
-      fetchQuotes([s])
-    } catch {
-      setSearchError('Service unavailable, try again')
-    }
-    setSearchLoading(false)
-  }
-  async function addTicker() { await addTickerDirect(searchInput) }
+  const addToWatchlist = useCallback(async (s: string) => {
+    if (watchlist.includes(s)) return
+    if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
+    fetch(`${BACKEND}/stream/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: s }),
+    }).catch(() => {})
+    setWatchlist(prev => [...prev, s])
+    fetchQuotes([s])
+  }, [watchlist, user, fetchQuotes])
 
   async function removeTicker(sym: string) {
     setWatchlist(prev => prev.filter(s => s !== sym))
@@ -1055,69 +1130,6 @@ export default function PWAApp() {
     return fetched
   }
 
-  // ── Search Input Component ──
-  function SearchInput({ inline }: { inline?: boolean }) {
-    return (
-      <div ref={searchRef} style={{ position: 'relative', ...(inline ? {} : { marginBottom: 14 }) }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            ref={searchInputRef}
-            type="text" value={searchInput}
-            onChange={e => handleSearchInput(e.target.value.toUpperCase())}
-            onKeyDown={handleSearchKeyDown}
-            onFocus={() => { if (suggestions.length) setShowSuggestions(true) }}
-            placeholder="Search ticker or company..."
-            disabled={searchLoading}
-            style={{
-              flex: 1, padding: '8px 14px', borderRadius: 6,
-              border: `1px solid ${D.border}`, background: D.surface,
-              color: D.text, fontFamily: D.sans, fontSize: 13, outline: 'none',
-              transition: 'border-color 0.15s',
-            }}
-            onFocusCapture={e => e.currentTarget.style.borderColor = D.accent + '60'}
-            onBlurCapture={e => e.currentTarget.style.borderColor = D.border}
-          />
-          <button onClick={addTicker} disabled={searchLoading || !searchInput.trim()} style={{
-            padding: '8px 18px', borderRadius: 6, border: 'none',
-            background: D.accent, color: '#000', fontFamily: D.sans,
-            fontSize: 13, fontWeight: 700, cursor: searchLoading ? 'wait' : 'pointer',
-            opacity: searchLoading || !searchInput.trim() ? 0.4 : 1, whiteSpace: 'nowrap',
-          }}>
-            {searchLoading ? '...' : 'Add'}
-          </button>
-        </div>
-        {searchError && (
-          <p style={{ fontFamily: D.sans, fontSize: 11, color: searchError.includes('limited') ? D.accentAmber : D.red, marginTop: 6 }}>{searchError}</p>
-        )}
-        {showSuggestions && suggestions.length > 0 && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-            background: D.card, border: `1px solid ${D.border}`, borderRadius: 8,
-            overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-          }}>
-            {suggestions.map((s, i) => (
-              <button key={s.symbol}
-                onClick={() => selectSuggestion(s.symbol)}
-                onMouseEnter={() => setSugIdx(i)}
-                style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  width: '100%', padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                  background: i === sugIdx ? `${D.accent}10` : 'transparent',
-                  transition: 'background 0.1s',
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 600, color: D.text }}>{s.symbol}</span>
-                  {s.type === 'ETF' && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentBlue}15`, color: D.accentBlue, fontWeight: 600 }}>ETF</span>}
-                  {s.type === 'CRYPTO' && <span style={{ fontFamily: D.sans, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accentAmber}15`, color: D.accentAmber, fontWeight: 600 }}>CRYPTO</span>}
-                </div>
-                <span style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, maxWidth: '50%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
 
   // ── Portfolio Analysis ──
   async function runPortfolioAnalysis() {
@@ -1491,7 +1503,7 @@ export default function PWAApp() {
           )}
         </div>
 
-        {user && <SearchInput />}
+        {user && <WatchlistSearch onAdd={addToWatchlist} isPro={isPro} watchlistLength={watchlist.length} freeLimitReached={!isPro && watchlist.length >= FREE_WATCHLIST_LIMIT} />}
 
         {/* Portfolio analysis result */}
         {showPortfolio && portfolioAnalysis.data && (
