@@ -639,10 +639,10 @@ export default function Home() {
       {/* STATS */}
       <div style={{ borderTop: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, background: COLORS.surface }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "60px 2rem", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 40 }}>
-          <StatTicker value={14} label="Data Sources Integrated" suffix="+" />
-          <StatTicker value={500} label="Beta Waitlist Members" suffix="+" />
-          <StatTicker value={98} label="Backend Uptime %" suffix="%" />
-          <StatTicker value={40} label="ms Average Latency" suffix="ms" />
+          <StatTicker value={16} label="Live Macro Indicators" suffix="" />
+          <StatTicker value={5} label="News Sources Aggregated" suffix="+" />
+          <StatTicker value={100} label="ms Price Update Latency" suffix="ms" />
+          <StatTicker value={24} label="/7 Crypto Coverage" suffix="" />
         </div>
       </div>
 
@@ -660,36 +660,37 @@ export default function Home() {
             <FeatureCard
               icon="⚡"
               badge="Live"
-              title="Tactical Scanner"
-              desc="Real-time TTM Squeeze detection, options flow scoring, and GEX analysis. Identify high-conviction setups before the crowd."
+              title="Conviction Scoring"
+              desc="Proprietary 0-100 score combining squeeze momentum, options flow, GEX, and macro regime. Know which setups have real edge."
+            />
+            <FeatureCard
+              icon="📊"
+              badge="RSI + MACD"
+              title="Options Intelligence"
+              desc="Real-time RSI and MACD on options data. Unusual sweep detection. Put/call ratio analysis. See what smart money is doing."
             />
             <FeatureCard
               icon="🌐"
-              badge="FRED + Polygon"
+              badge="16 Indicators"
               title="Macro Command Center"
-              desc="Tracks yield curve, credit spreads, VIX regime, and 8 other macro indicators. Classifies the current regime — risk-on, defensive, or transitional."
+              desc="16 live FRED indicators. Regime classification (Risk-On/Off). Fed rate, VIX, yield curve, credit spreads — all in one view."
             />
             <FeatureCard
-              icon="🎯"
-              title="Conviction Scorer"
-              desc="Aggregates squeeze signals, options flow, GEX, and macro into a single 0–100 conviction score. Know exactly how strong your thesis is."
+              icon="📰"
+              badge="5 Sources"
+              title="News Intelligence"
+              desc="Benzinga, SEC filings, Federal Register regulations, Fed announcements — aggregated and filterable in real time."
             />
             <FeatureCard
-              icon="🤖"
+              icon="✦"
               badge="Claude AI"
-              title="Agentic AI Layer"
-              desc="Ask questions in plain English. The AI agent calls your live data tools, interprets signals, and explains the market in clear, actionable language."
+              title="AI Analysis"
+              desc="Claude-powered ticker analysis with full context: conviction score, options flow, macro regime, and latest news."
             />
             <FeatureCard
-              icon="🔐"
+              icon="🔑"
               title="Bring Your Own Key"
-              desc="Use your own AI provider keys. Billed directly by your chosen provider at their rates — XAtlas has no markup. Keys encrypted at rest."
-            />
-            <FeatureCard
-              icon="📱"
-              badge="iOS"
-              title="Mobile-First Design"
-              desc="Built natively for iPhone. Not a stripped-down web port — a full-featured iOS app designed around how traders actually work on mobile."
+              desc="Use your own Anthropic or OpenAI API key. Billed directly by your provider at their rates. No markup."
             />
           </div>
         </div>

@@ -456,6 +456,174 @@ function NewsFeedInline({ limit = 6, isPro }: { limit?: number; isPro: boolean }
   )
 }
 
+// ── AI Analysis Panel (Detail Panel) ──
+function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
+  symbol: string; isPro: boolean; user: { id: string; email: string } | null
+  scores: Record<string, { conviction: number; squeeze_score: number; options_flow_score: number; macro_score: number; tier: string }>
+  aiData: Record<string, { loading: boolean; text: string; factors: string[] }>
+}) {
+  const [analysis, setAnalysis] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const fetchedRef = useRef('')
+
+  useEffect(() => {
+    if (!isPro || !symbol || fetchedRef.current === symbol) return
+    fetchedRef.current = symbol
+    setLoading(true)
+    setError('')
+    setAnalysis('')
+    const controller = new AbortController()
+    const t = setTimeout(() => controller.abort(), 30000)
+    fetch(`/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Is-Pro': 'true', 'X-User-ID': user?.id ?? '' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: `Give a concise 3-4 sentence analysis of ${symbol}: (1) current technical setup and momentum, (2) key risk/reward factors, (3) actionable outlook. Reference the conviction score of ${scores[symbol]?.conviction ?? 'N/A'}/100 and current macro regime. Max 120 words.` }],
+        context: `${symbol} conviction: ${scores[symbol]?.conviction ?? 0}/100, tier: ${scores[symbol]?.tier ?? 'unknown'}`,
+        symbol,
+      }),
+      signal: controller.signal,
+    })
+      .then(r => r.json())
+      .then(data => { setAnalysis(data.response ?? ''); clearTimeout(t) })
+      .catch(() => { setError('Analysis unavailable. Try again.'); clearTimeout(t) })
+      .finally(() => setLoading(false))
+    return () => { clearTimeout(t); controller.abort() }
+  }, [symbol, isPro, user?.id, scores])
+
+  const ai = aiData[symbol]
+  const s = scores[symbol]
+
+  if (!isPro) {
+    return (
+      <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16, position: 'relative' }}>
+        <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>AI Analysis</div>
+        <div style={{ filter: 'blur(4px)', userSelect: 'none' }}>
+          <p style={{ fontFamily: D.sans, fontSize: 13, color: D.muted, lineHeight: 1.7 }}>
+            Based on current squeeze conditions and macro regime alignment, this ticker shows moderate-to-strong conviction...
+          </p>
+        </div>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(6,8,16,0.6)', borderRadius: 10 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+          <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>AI Analysis requires Pro</p>
+          <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Start free trial</a>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: D.accent, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 1 }}>AI Analysis</div>
+        <button onClick={() => { fetchedRef.current = ''; setAnalysis(''); setLoading(true); fetchedRef.current = '' }} disabled={loading}
+          style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 11, fontFamily: D.sans }}>
+          {loading ? '...' : 'Refresh'}
+        </button>
+      </div>
+
+      {loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+          {[1, 2, 3].map(i => <div key={i} style={{ height: 14, borderRadius: 4, background: D.border, width: `${100 - i * 15}%` }} />)}
+        </div>
+      )}
+
+      {error && <div style={{ fontSize: 12, color: D.red, fontFamily: D.sans, marginBottom: 8 }}>{error}</div>}
+
+      {analysis && !loading && (
+        <div style={{ fontSize: 13, color: D.text, lineHeight: 1.7, fontFamily: D.sans, marginBottom: 12, opacity: 0.9 }}>{analysis}</div>
+      )}
+
+      {/* Score summary + factor tags */}
+      {(ai || s) && (
+        <div style={{ paddingTop: 12, borderTop: `1px solid ${D.border}` }}>
+          {s && (
+            <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, marginBottom: 8 }}>
+              Conviction {s.conviction}/100 · {s.tier}
+            </div>
+          )}
+          {ai && ai.factors.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ai.factors.map(f => (
+                <span key={f} style={{ fontFamily: D.sans, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: `${D.accent}10`, color: D.accent, fontWeight: 600 }}>{f}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── AI Macro Analysis Panel ──
+function MacroAIPanel({ macro, user }: { macro: MacroData; user: { id: string } | null }) {
+  const [analysis, setAnalysis] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [generated, setGenerated] = useState(false)
+
+  const generate = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Is-Pro': 'true', 'X-User-ID': user?.id ?? '' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: `Analyze this macroeconomic data and give a concise 3-sentence assessment: (1) current regime and drivers, (2) key risks, (3) which sectors/assets are most affected. Be specific and data-driven. Max 100 words.\n\n${JSON.stringify(macro)}` }],
+          context: 'macro analysis',
+        }),
+      })
+      const data = await res.json()
+      setAnalysis(data.response ?? 'Analysis unavailable.')
+      setGenerated(true)
+    } catch { setAnalysis('Analysis unavailable.') }
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ background: D.surface, borderRadius: 10, padding: 20, border: `1px solid ${D.accent}30`, marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: D.accent, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: 1 }}>AI Macro Analysis</div>
+        {!generated && (
+          <button onClick={generate} disabled={loading} style={{ padding: '6px 14px', background: D.accent, border: 'none', borderRadius: 6, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: D.sans }}>
+            {loading ? 'Analyzing...' : 'Generate Analysis'}
+          </button>
+        )}
+      </div>
+      {analysis ? (
+        <div style={{ fontSize: 13, color: D.text, lineHeight: 1.7, fontFamily: D.sans }}>{analysis}</div>
+      ) : !loading ? (
+        <div style={{ fontSize: 12, color: D.muted, fontFamily: D.sans }}>Click Generate for an AI-powered macro regime assessment.</div>
+      ) : null}
+    </div>
+  )
+}
+
+// ── Economic Calendar ──
+function EconomicCalendar() {
+  const [events, setEvents] = useState<{ name: string; date: string; source: string }[]>([])
+  useEffect(() => {
+    fetch('/api/macro/calendar').then(r => r.json()).then(data => { if (Array.isArray(data)) setEvents(data) }).catch(() => {})
+  }, [])
+  if (!events.length) return null
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 13, fontFamily: D.sans, fontWeight: 700, color: D.text, marginBottom: 12 }}>Upcoming Economic Events</div>
+      <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, overflow: 'hidden' }}>
+        {events.slice(0, 8).map((event, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: i < Math.min(events.length, 8) - 1 ? `1px solid ${D.border}` : 'none' }}>
+            <div>
+              <div style={{ fontFamily: D.sans, fontWeight: 600, color: D.text, fontSize: 13 }}>{event.name}</div>
+              <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans }}>{event.source}</div>
+            </div>
+            <div style={{ fontFamily: D.mono, fontSize: 12, color: D.accentAmber, fontWeight: 600 }}>{event.date}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Error Boundary ──
 class DashboardErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -1187,6 +1355,9 @@ export default function PWAApp() {
       ...(macro.m2 != null ? [{ key: 'm2' as const, value: macro.m2, fmt: `$${(macro.m2 / 1000)?.toFixed(1)}T` }] : []),
       ...(macro.jobless_claims != null ? [{ key: 'jobless_claims' as const, value: macro.jobless_claims, fmt: `${(macro.jobless_claims / 1000)?.toFixed(0)}K` }] : []),
       ...(macro.retail_sales != null ? [{ key: 'retail_sales' as const, value: macro.retail_sales, fmt: `$${(macro.retail_sales / 1000)?.toFixed(0)}B` }] : []),
+      ...(macro.gdp != null ? [{ key: 'gdp' as const, value: macro.gdp, fmt: `$${(macro.gdp / 1000)?.toFixed(1)}T` }] : []),
+      ...(macro.housing != null ? [{ key: 'housing' as const, value: macro.housing, fmt: `${macro.housing?.toFixed(0)}K` }] : []),
+      ...(macro.pmi != null ? [{ key: 'pmi' as const, value: macro.pmi, fmt: macro.pmi?.toFixed(1) }] : []),
     ] : []
 
     const extraInfo: Record<string, { title: string; desc: string; getStatus: (v: number) => string }> = {
@@ -1196,6 +1367,9 @@ export default function PWAApp() {
       m2: { title: 'M2 Money Supply', desc: 'Total money supply including savings. Expansion signals liquidity, contraction signals tightening.', getStatus: v => v > 21000 ? 'Expansionary' : 'Neutral' },
       jobless_claims: { title: 'Jobless Claims', desc: 'Weekly initial unemployment claims. Rising claims signal labor market weakness.', getStatus: v => v > 250000 ? 'Elevated' : v > 200000 ? 'Moderate' : 'Low' },
       retail_sales: { title: 'Retail Sales', desc: 'Monthly retail and food services sales. Measures consumer spending strength.', getStatus: v => v > 700000 ? 'Strong' : 'Moderate' },
+      gdp: { title: 'GDP', desc: 'Gross Domestic Product. Total economic output. Growth above 2% is healthy.', getStatus: v => v > 25000 ? 'Growing' : 'Moderate' },
+      housing: { title: 'Housing Starts', desc: 'New residential construction starts. Leading indicator of economic confidence.', getStatus: v => v > 1500 ? 'Strong' : v > 1000 ? 'Moderate' : 'Weak' },
+      pmi: { title: 'PMI', desc: 'Purchasing Managers Index. Above 50 = expansion, below 50 = contraction.', getStatus: v => v > 55 ? 'Expanding' : v > 50 ? 'Moderate' : v > 0 ? 'Contracting' : 'No Data' },
     }
     const allInfo = { ...MACRO_INFO, ...extraInfo }
 
@@ -1222,6 +1396,9 @@ export default function PWAApp() {
                 <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, marginTop: 2 }}>RISK SCORE</div>
               </div>
             </div>
+
+            {/* AI Macro Analysis — Pro only */}
+            {isPro && <MacroAIPanel macro={macro} user={user} />}
 
             {/* Indicator grid — 4 col desktop, 2 col mobile */}
             <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: 12 }}>
@@ -1267,6 +1444,9 @@ export default function PWAApp() {
               <div style={{ fontSize: 13, fontFamily: D.sans, fontWeight: 700, color: D.text, marginBottom: 12 }}>Fed & Regulatory News</div>
               <MacroNewsFeed />
             </div>
+
+            {/* Economic Calendar */}
+            <EconomicCalendar />
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: 60, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>Loading macro data...</div>
@@ -1688,42 +1868,7 @@ export default function PWAApp() {
             )}
 
             {/* AI Analysis */}
-            <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
-              <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>AI Analysis</div>
-              {isPro ? (
-                ai?.loading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {[1, 2, 3].map(i => <div key={i} style={{ height: 14, borderRadius: 4, background: D.border, width: `${100 - i * 15}%` }} />)}
-                  </div>
-                ) : ai ? (
-                  <>
-                    <p style={{ fontFamily: D.sans, fontSize: 13, color: D.text, lineHeight: 1.7, marginBottom: 8, opacity: 0.85 }}>{ai.text}</p>
-                    {ai.factors.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {ai.factors.map(f => (
-                          <span key={f} style={{ fontFamily: D.sans, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: `${D.accent}10`, color: D.accent, fontWeight: 600 }}>{f}</span>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p style={{ fontFamily: D.sans, fontSize: 13, color: D.muted }}>Loading analysis...</p>
-                )
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  <div style={{ filter: 'blur(4px)', userSelect: 'none' }}>
-                    <p style={{ fontFamily: D.sans, fontSize: 13, color: D.muted, lineHeight: 1.7 }}>
-                      Based on current squeeze conditions and macro regime alignment, this ticker shows moderate-to-strong conviction with favorable positioning across multiple factors...
-                    </p>
-                  </div>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(6,8,16,0.6)' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                    <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>AI Analysis requires Pro</p>
-                    <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Start free trial</a>
-                  </div>
-                </div>
-              )}
-            </div>
+            <AIAnalysisPanel symbol={sym} isPro={isPro} user={user} scores={scores} aiData={aiData} />
 
             {/* Ticker-specific news */}
             <TickerNews symbol={sym} />
