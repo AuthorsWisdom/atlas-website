@@ -82,6 +82,7 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
     const desktop = window.innerWidth >= 768
     const h = desktop ? 420 : 320
 
+    const isMobile = window.innerWidth < 768
     const chart = createChart(chartRef.current, {
       width: chartRef.current.clientWidth,
       height: h,
@@ -90,6 +91,17 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
       crosshair: { mode: 0 },
       rightPriceScale: { borderColor: '#1a1a1a', minimumWidth: 70 },
       timeScale: { borderColor: '#1a1a1a', timeVisible: timeframe === '1D' || timeframe === '1W' },
+      handleScroll: {
+        mouseWheel: false,
+        pressedMouseMove: !isMobile,
+        horzTouchDrag: false,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        mouseWheel: false,
+        pinch: false,
+        axisPressedMouseMove: false,
+      },
     })
     chartInstanceRef.current = chart
 
@@ -257,7 +269,9 @@ export default function StockChart({ symbol, isCrypto, livePrice, isLive }: Prop
           <span style={{ fontFamily: mono, fontSize: 14, color: '#555' }}>{error}</span>
         </div>
       ) : (
-        <div ref={chartRef} />
+        <div style={{ position: 'relative', overflow: 'hidden' }}>
+          <div ref={chartRef} />
+        </div>
       )}
 
       {/* Indicator toggles */}

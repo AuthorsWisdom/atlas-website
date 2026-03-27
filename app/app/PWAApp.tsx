@@ -850,15 +850,16 @@ export default function PWAApp() {
     setLastUpdated(new Date())
   }, [])
 
-  const fetchScore = useCallback(async (symbol: string) => {
+  const fetchScore = useCallback(async (symbol: string, retries = 2) => {
     const now = Date.now()
     if (now - (scoreTimestamps.current[symbol] ?? 0) < 60000) return
     scoreTimestamps.current[symbol] = now
     try {
       const res = await fetch(`${BACKEND}/score/${symbol}`, {
         headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' },
+        signal: AbortSignal.timeout(10000),
       })
-      if (!res.ok) return
+      if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
       if (data.conviction != null) {
         const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
@@ -873,7 +874,13 @@ export default function PWAApp() {
           },
         }))
       }
-    } catch { /* don't block on score errors */ }
+    } catch {
+      // Retry on failure — clear TTL so retry can proceed
+      delete scoreTimestamps.current[symbol]
+      if (retries > 0) {
+        setTimeout(() => fetchScore(symbol, retries - 1), 2000)
+      }
+    }
   }, [isPro, user?.id])
 
   // Fetch scores for watchlist symbols (all users see conviction numbers)
@@ -882,9 +889,10 @@ export default function PWAApp() {
     watchlist.forEach(sym => fetchScore(sym))
   }, [watchlist, fetchScore])
 
-  // Fetch score when ticker selected
+  // Fetch score when ticker selected — force fresh fetch (clear TTL)
   useEffect(() => {
     if (!selectedTicker) return
+    delete scoreTimestamps.current[selectedTicker]
     fetchScore(selectedTicker)
   }, [selectedTicker, fetchScore])
 
