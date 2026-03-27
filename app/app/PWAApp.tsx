@@ -887,6 +887,38 @@ const WatchlistSearch = memo(function WatchlistSearch({ onAdd, isPro, watchlistL
   )
 })
 
+// ── AI Council ──
+const PROVIDER_COLORS: Record<string, string> = {
+  anthropic: '#CC785C', openai: '#74AA9C', xai: '#1DA1F2', google: '#4285F4', mistral: '#FF4B4B',
+}
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: 'Claude', openai: 'GPT-4o', xai: 'Grok', google: 'Gemini', mistral: 'Mistral',
+}
+const PROVIDER_DEFAULTS: Record<string, string> = {
+  anthropic: 'claude-sonnet-4-5-20250514', openai: 'gpt-4o', xai: 'grok-beta', google: 'gemini-1.5-pro', mistral: 'mistral-large-latest',
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ResponseCard({ response }: { response: any }) {
+  const pid = response?.provider ?? 'unknown'
+  const color = PROVIDER_COLORS[pid] ?? D.muted
+  const name = response?.name ?? PROVIDER_NAMES[pid] ?? pid
+  return (
+    <div style={{ background: D.surface, borderRadius: 10, padding: 16, border: `1px solid ${color}30`, borderLeft: `3px solid ${color}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+        <span style={{ fontSize: 12, fontFamily: D.sans, fontWeight: 700, color }}>{name}</span>
+        <span style={{ fontSize: 10, color: D.muted, fontFamily: D.mono }}>{response?.model}</span>
+      </div>
+      {response?.error ? (
+        <div style={{ fontSize: 12, color: D.red, fontFamily: D.sans }}>{response.error}</div>
+      ) : (
+        <div style={{ fontSize: 13, color: D.text, fontFamily: D.sans, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{response?.response}</div>
+      )}
+    </div>
+  )
+}
+
 // ── Layout Editor ──
 function LayoutEditor({ layout, onChange }: { layout: LayoutConfig; onChange: (l: LayoutConfig) => void }) {
   const labelStyle: React.CSSProperties = { fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }
@@ -965,6 +997,14 @@ export default function PWAApp() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES)
   const [activeWorkspace, setActiveWorkspace] = useState('default')
   const saveLayoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // AI Council state
+  const [councilOpen, setCouncilOpen] = useState(false)
+  const [councilMode, setCouncilMode] = useState<'parallel' | 'debate'>('parallel')
+  const [councilQuestion, setCouncilQuestion] = useState('')
+  const [councilLoading, setCouncilLoading] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [councilResult, setCouncilResult] = useState<any>(null)
+  const [providerKeys, setProviderKeys] = useState<Record<string, string>>({})
   const isDesktop = useIsDesktop()
   const isMobile = !isDesktop
   const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
@@ -1984,6 +2024,24 @@ export default function PWAApp() {
               ))}
             </div>
 
+            {/* AI Council Keys — full width */}
+            <div style={{ ...cardStyle, ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
+              <div style={labelStyle}>AI Council — API Keys</div>
+              <p style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginBottom: 12 }}>
+                Add your own keys to activate multi-model council. Keys are stored locally in this session.
+              </p>
+              {Object.entries(PROVIDER_NAMES).map(([pid, name]) => (
+                <div key={pid} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: PROVIDER_COLORS[pid] }} />
+                    <span style={{ fontSize: 12, fontFamily: D.sans, fontWeight: 700, color: PROVIDER_COLORS[pid] }}>{name}</span>
+                  </div>
+                  <input type="password" value={providerKeys[pid] || ''} onChange={e => setProviderKeys(prev => ({ ...prev, [pid]: e.target.value }))}
+                    placeholder={`${name} API key`} style={{ width: '100%', padding: '8px 12px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: D.mono, outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+              ))}
+            </div>
+
             {/* Legal — full width */}
             <div style={{ ...cardStyle, ...(isDesktop ? { gridColumn: 'span 2' } : {}) }}>
               <div style={labelStyle}>Legal</div>
@@ -2253,7 +2311,7 @@ export default function PWAApp() {
 
         {/* Right side — AI + live indicator + user */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16 }}>
-          {/* AI Assistant button */}
+          {/* AI Assistant + Council buttons */}
           {!isMobile && (
             <button onClick={() => setShowAIChat(!showAIChat)} style={{
               padding: '5px 12px', borderRadius: 6,
@@ -2264,6 +2322,24 @@ export default function PWAApp() {
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
               ✦ AI
+            </button>
+          )}
+          {!isMobile && (
+            <button onClick={() => setCouncilOpen(!councilOpen)} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 12px', borderRadius: 6,
+              background: councilOpen ? '#7B61FF20' : 'transparent',
+              border: `1px solid ${councilOpen ? '#7B61FF60' : D.border}`,
+              color: councilOpen ? '#7B61FF' : D.muted,
+              fontFamily: D.sans, fontWeight: 700, fontSize: 11,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              Council
+              {Object.values(providerKeys).filter(k => k?.trim()).length > 0 && (
+                <span style={{ background: '#7B61FF', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                  {Object.values(providerKeys).filter(k => k?.trim()).length}
+                </span>
+              )}
             </button>
           )}
 
@@ -2365,6 +2441,147 @@ export default function PWAApp() {
         {tab === 'news' && <NewsTab isPro={isPro} />}
         {tab === 'settings' && renderSettings()}
       </main>
+
+      {/* ── AI COUNCIL PANEL ── */}
+      {councilOpen && !isMobile && (() => {
+        const activeProviders = Object.entries(providerKeys).filter(([, k]) => k?.trim().length > 0)
+
+        const runCouncil = async () => {
+          if (!councilQuestion.trim() || activeProviders.length === 0) return
+          setCouncilLoading(true)
+          setCouncilResult(null)
+          const sym = selectedTicker || 'SPY'
+          const marketData = {
+            conviction: scores[sym] || {},
+            options: scores[sym] || {},
+            gex: scores[sym] || {},
+            iv: {},
+            macro: {},
+            max_pain: {},
+            quote: liveQuotes[sym] || {},
+          }
+          try {
+            const endpoint = councilMode === 'debate' ? '/api/council/debate' : '/api/council/parallel'
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                symbol: sym, question: councilQuestion, market_data: marketData,
+                providers: activeProviders.map(([pid, key]) => ({ provider: pid, api_key: key, model: PROVIDER_DEFAULTS[pid] })),
+                mode: councilMode,
+              }),
+            })
+            setCouncilResult(await res.json())
+          } catch (e) { console.error('[council]', e) }
+          finally { setCouncilLoading(false) }
+        }
+
+        return (
+          <div style={{ position: 'fixed', top: 48, right: 0, bottom: 0, width: 520, background: '#080A0E', borderLeft: `1px solid ${D.border}`, display: 'flex', flexDirection: 'column', zIndex: 400, overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 15, color: D.text }}>AI Council</div>
+                <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, marginTop: 2 }}>{selectedTicker ?? 'No ticker'} &middot; {activeProviders.length} model{activeProviders.length !== 1 ? 's' : ''}</div>
+              </div>
+              <button onClick={() => setCouncilOpen(false)} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 20 }}>x</button>
+            </div>
+
+            {/* Mode toggle */}
+            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 8 }}>
+              {(['parallel', 'debate'] as const).map(mode => (
+                <button key={mode} onClick={() => setCouncilMode(mode)} style={{
+                  padding: '5px 12px', borderRadius: 8, border: `1px solid ${councilMode === mode ? D.accent : D.border}`,
+                  background: councilMode === mode ? D.accent : 'transparent',
+                  color: councilMode === mode ? '#000' : D.muted,
+                  fontFamily: D.sans, fontWeight: 700, fontSize: 11, cursor: 'pointer',
+                }}>{mode === 'parallel' ? 'Parallel' : 'Debate'}</button>
+              ))}
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: D.muted, fontFamily: D.sans, alignSelf: 'center' }}>
+                {councilMode === 'parallel' ? 'All respond at once' : '3-round debate'}
+              </span>
+            </div>
+
+            {/* Provider pills */}
+            <div style={{ padding: '8px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {Object.entries(PROVIDER_NAMES).map(([pid, name]) => {
+                const active = providerKeys[pid]?.trim().length > 0
+                const color = PROVIDER_COLORS[pid]
+                return (
+                  <div key={pid} style={{ padding: '3px 8px', borderRadius: 12, background: active ? `${color}20` : D.surface, border: `1px solid ${active ? color + '50' : D.border}`, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: active ? color : D.muted }} />
+                    <span style={{ fontSize: 10, fontFamily: D.sans, fontWeight: 700, color: active ? color : D.muted }}>{name}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Responses area */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+              {councilLoading && (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{ color: D.accent, fontFamily: D.sans, fontSize: 13, marginBottom: 8 }}>
+                    {councilMode === 'debate' ? 'Debate in progress...' : 'Querying all models...'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+                    {activeProviders.map(([pid]) => (
+                      <div key={pid} style={{ width: 8, height: 8, borderRadius: '50%', background: PROVIDER_COLORS[pid] }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!councilLoading && councilResult?.mode === 'parallel' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {councilResult.responses?.map((r: any, i: number) => <ResponseCard key={i} response={r} />)}
+                </div>
+              )}
+
+              {!councilLoading && councilResult?.mode === 'debate' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${D.border}` }}>Round 1 — Independent</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{councilResult.round1?.map((r: any, i: number) => <ResponseCard key={i} response={r} />)}</div>
+                  </div>
+                  {councilResult.round2?.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${D.border}` }}>Round 2 — Challenge</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{councilResult.round2.map((r: any, i: number) => <ResponseCard key={i} response={r} />)}</div>
+                    </div>
+                  )}
+                  {councilResult.synthesis && (
+                    <div style={{ background: D.surface, borderRadius: 12, padding: 20, border: `1px solid ${D.accent}40` }}>
+                      <div style={{ fontSize: 11, color: D.accent, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 10 }}>Synthesis — {PROVIDER_NAMES[councilResult.synthesis.provider] ?? 'AI'}</div>
+                      <div style={{ fontSize: 13, color: D.text, fontFamily: D.sans, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{councilResult.synthesis.response ?? councilResult.synthesis.error}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!councilLoading && !councilResult && (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: D.muted, fontFamily: D.sans, fontSize: 13 }}>
+                  {activeProviders.length === 0
+                    ? 'Add API keys in Settings to activate the council.'
+                    : `Ask the council about ${selectedTicker ?? 'the market'}. Context auto-injected.`}
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div style={{ padding: '14px 20px', borderTop: `1px solid ${D.border}`, display: 'flex', gap: 8 }}>
+              <input value={councilQuestion} onChange={e => setCouncilQuestion(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && runCouncil()}
+                placeholder={`Ask about ${selectedTicker ?? 'the market'}...`}
+                disabled={councilLoading || activeProviders.length === 0}
+                style={{ flex: 1, padding: '10px 14px', background: D.surface, border: `1px solid ${D.border}`, borderRadius: 8, color: D.text, fontSize: 13, fontFamily: D.sans, outline: 'none' }} />
+              <button onClick={runCouncil} disabled={councilLoading || !councilQuestion.trim() || activeProviders.length === 0}
+                style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: councilLoading ? 0.5 : 1 }}>
+                {councilMode === 'parallel' ? 'Ask' : 'Debate'}
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── AI CHAT — Floating Draggable Window ── */}
       {showAIChat && !isMobile && (() => {
