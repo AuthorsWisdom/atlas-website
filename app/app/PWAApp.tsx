@@ -53,7 +53,7 @@ interface PortfolioData {
   risk_factors: string[]; regime_alignment: string; regime: string
   scores: Record<string, number>; total_symbols: number
 }
-type Tab = 'scanner' | 'macro' | 'watchlist' | 'news' | 'settings'
+type Tab = 'scanner' | 'macro' | 'watchlist' | 'news' | 'council' | 'settings'
 
 // ── Source Badges ──
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -1095,11 +1095,12 @@ export default function PWAApp() {
     }
   }, [profile, isPro, user?.id])
 
-  // Fetch scores for watchlist symbols (all users see conviction numbers)
+  // Fetch scores for watchlist symbols — only on scanner/watchlist tabs
   useEffect(() => {
     if (!watchlist.length || !profile) return
+    if (tab !== 'scanner' && tab !== 'watchlist') return
     watchlist.forEach((sym, i) => setTimeout(() => fetchScore(sym), i * 500))
-  }, [watchlist, fetchScore, profile])
+  }, [watchlist, fetchScore, profile, tab])
 
   // When isPro flips to true, clear all TTLs and re-fetch
   useEffect(() => {
@@ -2003,6 +2004,164 @@ export default function PWAApp() {
     )
   }
 
+  // ── COUNCIL TAB — Portfolio P&L + AI Council ──
+  function renderCouncilTab() {
+    const activeProviders = Object.entries(providerKeys).filter(([, k]) => k?.trim().length > 0)
+    const sym = selectedTicker || 'SPY'
+    const buildMD = () => ({ conviction: scores[sym] || {}, options: {}, gex: {}, iv: {}, macro: {}, max_pain: {}, quote: liveQuotes[sym] || {} })
+
+    const sendToAll = async () => {
+      if ((!councilQuestion.trim() && councilAttachments.length === 0) || councilLoading || activeProviders.length === 0) return
+      const question = councilQuestion.trim() || '(see attached file)'
+      const currentAtts = [...councilAttachments]
+      setCouncilQuestion('')
+      setCouncilAttachments([])
+      setCouncilLoading(true)
+      const md = buildMD()
+      setCouncilResult((prev: any) => {
+        const h = { ...(prev?.history ?? {}) }
+        activeProviders.forEach(([pid]) => { h[pid] = [...(h[pid] ?? []), { role: 'user', content: question }] })
+        return { ...prev, history: h }
+      })
+      await Promise.all(activeProviders.map(async ([pid, key]) => {
+        const model = PROVIDER_DEFAULTS[pid]
+        try {
+          const res = await fetch('/api/council/single', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: sym, question, market_data: md, provider: pid, api_key: key, model, user_id: user?.id ?? '', attachments: currentAtts.map(a => ({ name: a.name, media_type: a.mediaType, data: a.data, kind: a.kind })) }),
+          })
+          const data = await res.json()
+          const text = data?.result?.response ?? data?.result?.error ?? `Error ${res.status}`
+          const isErr = !!data?.result?.error
+          setCouncilResult((prev: any) => ({ ...prev, history: { ...(prev?.history ?? {}), [pid]: [...((prev?.history ?? {})[pid] ?? []), { role: 'assistant', content: text, model, error: isErr }] } }))
+        } catch (e: any) {
+          setCouncilResult((prev: any) => ({ ...prev, history: { ...(prev?.history ?? {}), [pid]: [...((prev?.history ?? {})[pid] ?? []), { role: 'assistant', content: `Error: ${e.message}`, error: true }] } }))
+        }
+      }))
+      setCouncilLoading(false)
+    }
+
+    const history = (councilResult?.history ?? {}) as Record<string, Array<{ role: string; content: string; model?: string; error?: boolean }>>
+
+    return (
+      <>
+        {/* Portfolio P&L */}
+        <div style={{ background: D.surface, borderRadius: 12, border: `1px solid ${D.border}`, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12 }}>Portfolio</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+            {[
+              { key: 'symbol', placeholder: 'TICKER', width: 80 },
+              { key: 'shares', placeholder: 'Shares', width: 70 },
+              { key: 'avgCost', placeholder: 'Avg $', width: 80 },
+            ].map(f => (
+              <input key={f.key} value={(portfolioInput as Record<string, string>)[f.key]} onChange={e => setPortfolioInput(prev => ({ ...prev, [f.key]: e.target.value }))}
+                placeholder={f.placeholder} style={{ width: f.width, padding: '6px 8px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: f.key === 'symbol' ? D.mono : D.sans, outline: 'none', textTransform: f.key === 'symbol' ? 'uppercase' as const : 'none' as const }} />
+            ))}
+            <button onClick={addPortfolioPosition} style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>+ Add</button>
+          </div>
+          {portfolio.length > 0 && (() => {
+            let totalValue = 0, totalCost = 0
+            const positions = portfolio.map(p => {
+              const price = liveQuotes[p.symbol]?.price ?? 0
+              const value = price * p.shares
+              const cost = p.avgCost * p.shares
+              const pnl = value - cost
+              const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
+              totalValue += value; totalCost += cost
+              return { ...p, price, value, pnl, pnlPct, conviction: scores[p.symbol]?.conviction ?? null }
+            })
+            const totalPnl = totalValue - totalCost
+            const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
+            return (
+              <>
+                <div style={{ display: 'flex', gap: 16, padding: '8px 10px', background: D.bg, borderRadius: 8, marginBottom: 10 }}>
+                  <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>Value</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: D.text }}>${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
+                  <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>P&L</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: totalPnl >= 0 ? D.accent : D.red }}>{totalPnl >= 0 ? '+' : ''}${totalPnl.toLocaleString('en-US', { maximumFractionDigits: 0 })} ({totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(1)}%)</div></div>
+                </div>
+                {positions.map(pos => (
+                  <div key={pos.symbol} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${D.border}` }} onClick={() => setSelectedTicker(pos.symbol)}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontFamily: D.mono, fontWeight: 700, fontSize: 13, color: D.text }}>{pos.symbol}</span>
+                        {pos.conviction != null && <span style={{ fontSize: 9, fontFamily: D.sans, fontWeight: 700, color: pos.conviction >= 60 ? D.accent : pos.conviction < 40 ? D.red : '#F0B90B' }}>{pos.conviction}/100</span>}
+                      </div>
+                      <div style={{ fontSize: 10, color: D.muted, fontFamily: D.sans }}>{pos.shares} @ ${pos.avgCost.toFixed(2)}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: D.mono, fontSize: 13, fontWeight: 700, color: D.text }}>${pos.value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                        <div style={{ fontSize: 11, fontFamily: D.mono, color: pos.pnl >= 0 ? D.accent : D.red }}>{pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(0)} ({pos.pnlPct >= 0 ? '+' : ''}{pos.pnlPct.toFixed(1)}%)</div>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); savePortfolio(portfolio.filter(p => p.symbol !== pos.symbol)) }} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 14 }}>x</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )
+          })()}
+          {portfolio.length === 0 && <div style={{ textAlign: 'center', padding: '12px 0', color: D.muted, fontFamily: D.sans, fontSize: 12 }}>Add positions to track P&L with conviction scores.</div>}
+        </div>
+
+        {/* AI Council */}
+        <div style={{ background: D.surface, borderRadius: 12, border: `1px solid ${D.border}`, display: 'flex', flexDirection: 'column', minHeight: 400 }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 14, color: D.text }}>AI Council</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {activeProviders.map(([pid]) => (
+                <span key={pid} style={{ fontSize: 9, fontFamily: D.sans, fontWeight: 700, color: PROVIDER_COLORS[pid], padding: '1px 6px', background: `${PROVIDER_COLORS[pid]}12`, borderRadius: 8, border: `1px solid ${PROVIDER_COLORS[pid]}25` }}>{PROVIDER_NAMES[pid]}</span>
+              ))}
+              {activeProviders.length === 0 && <span style={{ fontSize: 10, color: D.muted, fontFamily: D.sans }}>Add keys in Settings</span>}
+            </div>
+          </div>
+
+          {/* Horizontal provider windows */}
+          {activeProviders.length > 0 && (
+            <div style={{ flex: 1, display: 'flex', gap: 1, minHeight: 300 }}>
+              {activeProviders.map(([pid], idx) => {
+                const color = PROVIDER_COLORS[pid] ?? D.muted
+                const msgs = history[pid] ?? []
+                return (
+                  <div key={pid} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: idx < activeProviders.length - 1 ? `1px solid ${D.border}` : 'none', minWidth: 0 }}>
+                    <div style={{ padding: '6px 10px', background: D.bg, borderBottom: `2px solid ${color}`, display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+                      <span style={{ fontFamily: D.sans, fontWeight: 800, fontSize: 11, color }}>{PROVIDER_NAMES[pid]}</span>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
+                      {msgs.length === 0 && <div style={{ textAlign: 'center', paddingTop: 30, color: D.muted, fontFamily: D.sans, fontSize: 10 }}>Ready</div>}
+                      {msgs.map((msg, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                          <div style={{ maxWidth: '92%', padding: '6px 10px', borderRadius: msg.role === 'user' ? '10px 10px 3px 10px' : '10px 10px 10px 3px', background: msg.role === 'user' ? D.border : msg.error ? '#2A0A0A' : `${color}12`, border: msg.role === 'assistant' ? `1px solid ${msg.error ? `${D.red}40` : `${color}25`}` : 'none' }}>
+                            <div style={{ fontSize: 11, fontFamily: D.sans, lineHeight: 1.6, color: msg.error ? D.red : D.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {councilLoading && <div style={{ display: 'flex', gap: 3, padding: 4 }}>{[0, 1, 2].map(i => <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: color, opacity: 0.6 }} />)}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Query bar */}
+          <div style={{ padding: '10px 12px', borderTop: `1px solid ${D.border}` }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={councilQuestion} onChange={e => setCouncilQuestion(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendToAll() } }}
+                placeholder={activeProviders.length > 0 ? `Ask ${activeProviders.length} models about ${sym}...` : 'Add API keys in Settings first'}
+                disabled={councilLoading || activeProviders.length === 0}
+                style={{ flex: 1, padding: '8px 12px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 8, color: D.text, fontSize: 12, fontFamily: D.sans, outline: 'none' }} />
+              <button onClick={sendToAll} disabled={councilLoading || (!councilQuestion.trim() && councilAttachments.length === 0) || activeProviders.length === 0}
+                style={{ padding: '0 14px', borderRadius: 8, border: 'none', background: councilLoading ? D.border : D.accent, color: councilLoading ? D.muted : '#000', fontFamily: D.sans, fontWeight: 800, fontSize: 14, cursor: councilLoading ? 'not-allowed' : 'pointer' }}>
+                {councilLoading ? '...' : '↑'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   // ── SETTINGS TAB ──
   function renderSettings() {
     const cardStyle: React.CSSProperties = {
@@ -2403,7 +2562,7 @@ export default function PWAApp() {
         {/* Nav tabs — horizontal, Bloomberg style */}
         {!isMobile && (
           <div style={{ display: 'flex', gap: 0, height: 48 }}>
-            {(['scanner', 'macro', 'watchlist', 'news', 'settings'] as Tab[]).map(t => (
+            {(['scanner', 'macro', 'watchlist', 'news', 'council', 'settings'] as Tab[]).map(t => (
               <button key={t} onClick={() => { setSelectedTicker(null); setTab(t) }} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 padding: '0 16px', height: 48,
@@ -2551,6 +2710,7 @@ export default function PWAApp() {
         {tab === 'macro' && renderMacro()}
         {tab === 'watchlist' && renderWatchlist()}
         {tab === 'news' && <NewsTab isPro={isPro} />}
+        {tab === 'council' && renderCouncilTab()}
         {tab === 'settings' && renderSettings()}
       </main>
 
@@ -2879,7 +3039,7 @@ export default function PWAApp() {
             { id: 'scanner' as Tab, icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
             { id: 'macro' as Tab, icon: 'M3 20h18M6 16V10M10 16V6M14 16V12M18 16V8' },
             { id: 'watchlist' as Tab, icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
-            { id: 'news' as Tab, icon: 'M4 4h16v16H4zM4 8h16M8 4v16' },
+            { id: 'council' as Tab, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
             { id: 'settings' as Tab, icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z' },
           ]).map(t => {
             const active = tab === t.id
