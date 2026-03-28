@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const BACKEND = process.env.FLY_URL || 'https://atlas-backend-silent-log-2366.fly.dev'
+const BACKEND = 'http://localhost:8080'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

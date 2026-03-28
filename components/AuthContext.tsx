@@ -1,7 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
-import { getSupabase } from '@/lib/supabase-browser'
+import { createContext, useContext, type ReactNode } from 'react'
 
 interface Profile {
   id: string
@@ -22,8 +21,18 @@ interface AuthState {
   refreshProfile: () => Promise<void>
 }
 
+const LOCAL_USER = { id: 'local', email: 'local@xatlas.app' }
+const LOCAL_PROFILE: Profile = {
+  id: 'local',
+  email: 'local@xatlas.app',
+  is_pro: true,
+  subscription_source: 'local',
+  subscription_status: 'active',
+  stripe_customer_id: null,
+}
+
 const AuthContext = createContext<AuthState>({
-  user: null, profile: null, loading: true,
+  user: LOCAL_USER, profile: LOCAL_PROFILE, loading: false,
   signIn: async () => null, signUp: async () => null,
   signOut: async () => {}, refreshProfile: async () => {},
 })
@@ -31,94 +40,16 @@ const AuthContext = createContext<AuthState>({
 export function useAuth() { return useContext(AuthContext) }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const profileFetchedRef = useRef(false)
-  const initialSessionRef = useRef(false)
-
-  const fetchProfile = useCallback(async (userId: string, email: string) => {
-    if (profileFetchedRef.current) return
-    const fallback: Profile = {
-      id: userId, email, is_pro: false,
-      subscription_source: 'none', subscription_status: 'inactive',
-      stripe_customer_id: null,
-    }
-    try {
-      const { data, error } = await getSupabase()
-        .from('profiles')
-        .select('id, is_pro, subscription_source, subscription_status, stripe_customer_id')
-        .eq('id', userId)
-        .maybeSingle()
-      profileFetchedRef.current = true
-      if (error) {
-        console.error('[AuthContext] Profile fetch error:', error.message, error.code)
-        setProfile(fallback)
-      } else if (data) {
-        console.log('[AuthContext] Profile loaded: is_pro =', data.is_pro)
-        setProfile({ ...data, email } as Profile)
-      } else {
-        console.log('[AuthContext] No profile row found, defaulting to free')
-        setProfile(fallback)
-      }
-    } catch (e) {
-      console.error('[AuthContext] Profile fetch exception:', e)
-      profileFetchedRef.current = true
-      setProfile(fallback)
-    }
-  }, [])
-
-  useEffect(() => {
-    const supabase = getSupabase()
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser({ id: session.user.id, email: session.user.email || '' })
-        fetchProfile(session.user.id, session.user.email || '')
-      }
-      setLoading(false)
-    }).catch(() => {
-      setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Skip INITIAL_SESSION — already handled by getSession() above
-      if (event === 'INITIAL_SESSION') return
-      if (session?.user) {
-        setUser({ id: session.user.id, email: session.user.email || '' })
-        fetchProfile(session.user.id, session.user.email || '')
-      } else {
-        setUser(null)
-        setProfile(null)
-        profileFetchedRef.current = false
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [fetchProfile])
-
-  const signIn = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await getSupabase().auth.signInWithPassword({ email, password })
-    return error ? error.message : null
-  }
-
-  const signUp = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await getSupabase().auth.signUp({ email, password })
-    return error ? error.message : null
-  }
-
-  const signOut = async () => {
-    await getSupabase().auth.signOut()
-    setUser(null)
-    setProfile(null)
-  }
-
-  const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id, user.email)
-  }
-
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{
+      user: LOCAL_USER,
+      profile: LOCAL_PROFILE,
+      loading: false,
+      signIn: async () => null,
+      signUp: async () => null,
+      signOut: async () => {},
+      refreshProfile: async () => {},
+    }}>
       {children}
     </AuthContext.Provider>
   )

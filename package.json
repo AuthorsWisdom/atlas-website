@@ -2,11 +2,14 @@
   "name": "atlas-website",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build:mac": "electron-builder --mac --config electron-builder.json"
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.11.0",
@@ -14,19 +17,25 @@
     "@supabase/supabase-js": "^2.100.0",
     "ai": "^6.0.139",
     "apexcharts": "^5.10.4",
+    "concurrently": "^9.2.1",
+    "electron-store": "^11.0.2",
     "lightweight-charts": "^5.1.0",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-apexcharts": "^2.1.0",
     "react-dom": "19.2.4",
     "resend": "^6.9.4",
-    "stripe": "^20.4.1"
+    "stripe": "^20.4.1",
+    "wait-on": "^9.0.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.10.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^41.1.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",

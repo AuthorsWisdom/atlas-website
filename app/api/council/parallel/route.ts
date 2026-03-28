@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-const RAILWAY = process.env.FLY_URL || 'https://atlas-backend-silent-log-2366.fly.dev'
+const RAILWAY = 'http://localhost:8080'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60

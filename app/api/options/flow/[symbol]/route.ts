@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 15
 
-const RAILWAY = 'https://atlas-backend-silent-log-2366.fly.dev'
+const RAILWAY = 'http://localhost:8080'
 
 export async function GET(
   request: NextRequest,

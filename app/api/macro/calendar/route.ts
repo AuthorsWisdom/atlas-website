@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const BACKEND = 'https://atlas-backend-silent-log-2366.fly.dev'
+const BACKEND = 'http://localhost:8080'
 
 export async function GET() {
   const controller = new AbortController()

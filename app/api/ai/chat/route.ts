@@ -4,7 +4,7 @@ import { generateText } from 'ai'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-const RAILWAY = process.env.FLY_URL || 'https://atlas-backend-silent-log-2366.fly.dev'
+const RAILWAY = 'http://localhost:8080'
 
 /* ── Model mapping: frontend names → AI Gateway model IDs ──────── */
 const GATEWAY_MODELS: Record<string, string> = {

@@ -1,16 +1,24 @@
 'use client'
 
+declare global {
+  interface Window {
+    electron?: {
+      getKey: (provider: string) => Promise<string>
+      setKey: (provider: string, key: string) => Promise<void>
+      deleteKey: (provider: string) => Promise<void>
+      getData: (key: string) => Promise<any>
+      setData: (key: string, value: any) => Promise<void>
+    }
+  }
+}
+
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthContext'
-import { getSupabase } from '@/lib/supabase-browser'
-import AuthModal from '@/components/AuthModal'
 import ApexStockChart from '@/components/ApexStockChart'
 import OptionsFlowPanel from '@/components/OptionsFlowPanel'
 import OptionsIntelligence from '@/components/OptionsIntelligence'
 import { useLivePrices } from '@/hooks/useLivePrices'
-
-const FREE_WATCHLIST_LIMIT = 3
 
 const CRYPTO_SYMBOLS = new Set([
   'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'DOT',
@@ -551,7 +559,7 @@ function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
   const [refreshCount, setRefreshCount] = useState(0)
 
   useEffect(() => {
-    if (!isPro || !symbol) return
+    if (!symbol) return
     setLoading(true)
     setError('')
     setAnalysis('')
@@ -576,28 +584,10 @@ function AIAnalysisPanel({ symbol, isPro, user, scores, aiData }: {
       .catch(() => { setError('Analysis unavailable. Try again.'); clearTimeout(t) })
       .finally(() => setLoading(false))
     return () => { clearTimeout(t); controller.abort() }
-  }, [symbol, isPro, user?.id, refreshCount])
+  }, [symbol, user?.id, refreshCount])
 
   const ai = aiData[symbol]
   const s = scores[symbol]
-
-  if (!isPro) {
-    return (
-      <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16, position: 'relative' }}>
-        <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>AI Analysis</div>
-        <div style={{ filter: 'blur(4px)', userSelect: 'none' }}>
-          <p style={{ fontFamily: D.sans, fontSize: 13, color: D.muted, lineHeight: 1.7 }}>
-            Based on current squeeze conditions and macro regime alignment, this ticker shows moderate-to-strong conviction...
-          </p>
-        </div>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(6,8,16,0.6)', borderRadius: 10 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-          <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>AI Analysis requires Pro</p>
-          <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Start free trial</a>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
@@ -778,7 +768,7 @@ const WatchlistSearch = memo(function WatchlistSearch({ onAdd, isPro, watchlistL
     const s = sym.trim().toUpperCase()
     if (!s) return
     setSearchError('')
-    if (freeLimitReached) { setSearchError(`Free plan limited to ${FREE_WATCHLIST_LIMIT} symbols`); return }
+    if (freeLimitReached) { setSearchError('Watchlist limit reached'); return }
     setSearchLoading(true)
     try {
       const res = await fetch(`/api/validate/${s}`)
@@ -894,10 +884,10 @@ const PROVIDER_NAMES: Record<string, string> = {
   anthropic: 'Claude', openai: 'GPT-4o', xai: 'Grok', google: 'Gemini', mistral: 'Mistral',
 }
 const PROVIDER_DEFAULTS: Record<string, string> = {
-  anthropic: 'claude-sonnet-4-5-20250514', openai: 'gpt-4o', xai: 'grok-beta', google: 'gemini-1.5-pro', mistral: 'mistral-large-latest',
+  anthropic: 'claude-haiku-4-5-20251001', openai: 'gpt-4o', xai: 'grok-beta', google: 'gemini-1.5-pro', mistral: 'mistral-large-latest',
 }
 const PROVIDER_MODELS: Record<string, string[]> = {
-  anthropic: ['claude-sonnet-4-5-20250514', 'claude-opus-4-5-20251001', 'claude-haiku-4-5-20251001'],
+  anthropic: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-5-20250514', 'claude-opus-4-5-20250514'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
   xai: ['grok-beta', 'grok-2'],
   google: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash-exp'],
@@ -969,8 +959,8 @@ function LayoutEditor({ layout, onChange }: { layout: LayoutConfig; onChange: (l
 
 // ── Main App ──
 export default function PWAApp() {
-  const { user, profile, loading: authLoading, signOut } = useAuth()
-  const [showAuth, setShowAuth] = useState(false)
+  const { user, profile } = useAuth()
+  const isPro = true
   const [tab, setTab] = useState<Tab>('scanner')
   const [quotes, setQuotes] = useState<Record<string, QuoteData>>({})
   const [macro, setMacro] = useState<MacroData | null>(null)
@@ -1019,8 +1009,6 @@ export default function PWAApp() {
   const isMobile = !isDesktop
   const { quotes: liveQuotes, isLive, stockMarketOpen, flashes } = useLivePrices(watchlist)
 
-  const isPro = profile?.is_pro ?? false
-
   // ── Data fetching ──
   const fetchQuotes = useCallback(async (symbols: string[]) => {
     if (!symbols.length) return
@@ -1035,25 +1023,20 @@ export default function PWAApp() {
 
   const fetchScore = useCallback(async (symbol: string, retries = 2) => {
     // Don't fetch until profile is loaded — avoids caching free-tier result for Pro users
-    if (!profile) {
-      console.log(`[fetchScore] ${symbol} skipped — profile not loaded yet`)
-      return
-    }
     const now = Date.now()
     if (now - (scoreTimestamps.current[symbol] ?? 0) < 60000) {
       console.log(`[fetchScore] ${symbol} skipped — TTL not expired`)
       return
     }
     scoreTimestamps.current[symbol] = now
-    console.log(`[fetchScore] ${symbol} isPro=${isPro} userId=${user?.id?.slice(0, 8)} retries=${retries}`)
+    console.log(`[fetchScore] ${symbol} retries=${retries}`)
     try {
       const res = await fetch(`/api/score/${symbol}`, {
-        headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' },
+        headers: { 'X-Is-Pro': 'true' },
         signal: AbortSignal.timeout(12000),
         cache: 'no-store',
       })
       console.log(`[fetchScore] ${symbol} status=${res.status}`)
-      // Don't retry on 429 — back off 30s instead
       if (res.status === 429) {
         console.log(`[fetchScore] ${symbol} rate limited — backing off 30s`)
         setTimeout(() => {
@@ -1066,13 +1049,6 @@ export default function PWAApp() {
       const data = await res.json()
       console.log(`[fetchScore] ${symbol} conviction=${data.conviction} tier=${data.tier}`)
       if (data.conviction != null) {
-        // If Pro user got free tier result, don't cache — retry
-        if (isPro && data.tier === 'free') {
-          console.log(`[fetchScore] ${symbol} got free tier as Pro — will retry`)
-          delete scoreTimestamps.current[symbol]
-          if (retries > 0) setTimeout(() => fetchScore(symbol, retries - 1), 2000)
-          return
-        }
         const normSignal = (v: number | null | undefined) => v == null ? 0 : v >= 1 ? 90 : v <= -1 ? 10 : 50
         setScores(prev => ({
           ...prev,
@@ -1087,120 +1063,117 @@ export default function PWAApp() {
       }
     } catch (e: any) {
       console.error(`[fetchScore] ${symbol} error:`, e)
-      // Retry on failure — clear TTL so retry can proceed
       delete scoreTimestamps.current[symbol]
       if (retries > 0 && !e.message?.includes('429')) {
         setTimeout(() => fetchScore(symbol, retries - 1), 3000)
       }
     }
-  }, [profile, isPro, user?.id])
+  }, [])
 
   // Fetch scores for watchlist symbols — only on scanner/watchlist tabs
   useEffect(() => {
     if (!watchlist.length || !profile) return
     if (tab !== 'scanner' && tab !== 'watchlist') return
     watchlist.forEach((sym, i) => setTimeout(() => fetchScore(sym), i * 500))
-  }, [watchlist, fetchScore, profile, tab])
-
-  // When isPro flips to true, clear all TTLs and re-fetch
-  useEffect(() => {
-    if (!isPro || !watchlist.length) return
-    console.log('[scores] isPro confirmed true — clearing TTL and re-fetching all scores')
-    scoreTimestamps.current = {}
-    watchlist.forEach((sym, i) => setTimeout(() => fetchScore(sym), i * 600))
-  }, [isPro])
+  }, [watchlist, fetchScore, tab])
 
   // Fetch score when ticker selected — force fresh fetch (clear TTL)
   useEffect(() => {
-    if (!selectedTicker || !profile) return
+    if (!selectedTicker) return
     delete scoreTimestamps.current[selectedTicker]
     fetchScore(selectedTicker)
   }, [selectedTicker, fetchScore])
 
+  // Load provider keys, portfolio, and watchlist from Electron store
   useEffect(() => {
-    if (!user) { setWatchlist([]); return }
-    getSupabase().from('watchlist').select('symbol').eq('user_id', user.id).order('created_at')
-      .then(({ data }) => { if (data) setWatchlist(data.map((r: { symbol: string }) => r.symbol)) }, () => {})
-  }, [user])
-
-  // Load layout + workspaces from Supabase (safe — columns may not exist yet)
-  useEffect(() => {
-    if (!user) return
-    getSupabase().from('profiles').select('layout_config, workspaces, active_workspace').eq('id', user.id).maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          // Columns may not exist — try layout_config only
-          getSupabase().from('profiles').select('layout_config').eq('id', user.id).maybeSingle()
-            .then(({ data: d2 }) => { if (d2?.layout_config) setLayout(d2.layout_config) })
-          return
-        }
-        if (data?.layout_config) setLayout(data.layout_config)
-        if (data?.workspaces) setWorkspaces(data.workspaces)
-        if (data?.active_workspace) setActiveWorkspace(data.active_workspace)
-      })
-  }, [user])
-
-  // Load portfolio + provider keys from Supabase
-  useEffect(() => {
-    if (!user) return
-    getSupabase().from('profiles').select('portfolio, ai_provider_keys').eq('id', user.id).maybeSingle()
-      .then(({ data, error }) => {
-        if (error) { console.error('[persist] load error:', error.message); return }
-        if (Array.isArray(data?.portfolio) && data.portfolio.length > 0) {
-          setPortfolio(data.portfolio)
-          console.log('[persist] portfolio restored:', data.portfolio.length)
-        }
-        if (data?.ai_provider_keys && typeof data.ai_provider_keys === 'object') {
-          setProviderKeys(prev => ({ ...prev, ...data.ai_provider_keys }))
-          console.log('[persist] keys restored:', Object.keys(data.ai_provider_keys).filter(k => data.ai_provider_keys[k]).length)
+    if (typeof window === 'undefined' || !window.electron) return
+    const providers = ['anthropic', 'openai', 'xai', 'google', 'mistral']
+    Promise.all(providers.map(p => window.electron!.getKey(p).then(k => [p, k] as const)))
+      .then(entries => {
+        const loaded: Record<string, string> = {}
+        for (const [p, k] of entries) { if (k) loaded[p] = k }
+        if (Object.keys(loaded).length > 0) {
+          setProviderKeys(prev => ({ ...prev, ...loaded }))
+          console.log('[electron] keys restored:', Object.keys(loaded).length)
         }
       })
-  }, [user])
+    window.electron.getData('portfolio').then((data: any) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setPortfolio(data)
+        console.log('[electron] portfolio restored:', data.length)
+      }
+    })
+    window.electron.getData('watchlist').then((data: any) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setWatchlist(data)
+        console.log('[electron] watchlist restored:', data.length)
+      }
+    })
+  }, [])
 
   const savePortfolio = useCallback(async (positions: typeof portfolio) => {
     setPortfolio(positions)
-    if (!user) return
-    const { error } = await getSupabase().from('profiles').update({ portfolio: positions }).eq('id', user.id)
-    if (error) console.error('[portfolio] save error:', error.message)
-    else console.log('[portfolio] saved', positions.length, 'positions')
-  }, [user])
+    if (typeof window !== 'undefined' && window.electron) {
+      await window.electron.setData('portfolio', positions)
+    }
+    console.log('[portfolio] saved', positions.length, 'positions')
+  }, [])
+
+  // Fetch quotes for portfolio symbols not already on watchlist
+  useEffect(() => {
+    if (!portfolio.length) return
+    const missing = portfolio.map(p => p.symbol).filter(s => !watchlist.includes(s) && !quotes[s])
+    if (missing.length > 0) {
+      fetchQuotes(missing)
+    }
+  }, [portfolio, watchlist, quotes, fetchQuotes])
 
   const saveProviderKey = useCallback(async (provider: string, key: string) => {
     const newKeys = { ...providerKeys, [provider]: key }
     setProviderKeys(newKeys)
-    if (!user) return
-    const { error } = await getSupabase().from('profiles').update({ ai_provider_keys: newKeys }).eq('id', user.id)
-    if (error) console.error('[keys] save error:', error.message)
-    else console.log('[keys] saved:', provider)
-  }, [user, providerKeys])
+    if (typeof window !== 'undefined' && window.electron) {
+      if (key) {
+        await window.electron.setKey(provider, key)
+      } else {
+        await window.electron.deleteKey(provider)
+      }
+      console.log('[electron] key saved:', provider)
+    }
+  }, [providerKeys])
 
   const addPortfolioPosition = useCallback(() => {
     const { symbol, shares, avgCost } = portfolioInput
     if (!symbol || !shares) return
-    const updated = [...portfolio.filter(p => p.symbol !== symbol.toUpperCase()), { symbol: symbol.toUpperCase(), shares: parseFloat(shares), avgCost: parseFloat(avgCost) || 0 }]
+    const sym = symbol.toUpperCase()
+    const newShares = parseFloat(shares)
+    const newCost = parseFloat(avgCost) || 0
+    const existing = portfolio.find(p => p.symbol === sym)
+    let merged
+    if (existing) {
+      // Merge lots: combine shares, compute weighted average cost
+      const totalShares = existing.shares + newShares
+      const weightedCost = totalShares > 0
+        ? (existing.avgCost * existing.shares + newCost * newShares) / totalShares
+        : 0
+      merged = { symbol: sym, shares: totalShares, avgCost: Math.round(weightedCost * 100) / 100 }
+    } else {
+      merged = { symbol: sym, shares: newShares, avgCost: newCost }
+    }
+    const updated = [...portfolio.filter(p => p.symbol !== sym), merged]
     savePortfolio(updated)
     setPortfolioInput({ symbol: '', shares: '', avgCost: '' })
   }, [portfolioInput, portfolio, savePortfolio])
 
   const handleLayoutChange = useCallback((newLayout: LayoutConfig) => {
     setLayout(newLayout)
-    if (!user) return
-    clearTimeout(saveLayoutRef.current)
-    saveLayoutRef.current = setTimeout(() => {
-      getSupabase().from('profiles').update({ layout_config: newLayout }).eq('id', user.id)
-        .then(({ error }) => { if (!error) console.log('[layout] saved') })
-    }, 1000)
-  }, [user])
+  }, [])
 
   const switchWorkspace = useCallback((wsId: string) => {
     const ws = workspaces.find(w => w.id === wsId)
     if (!ws) return
     setActiveWorkspace(wsId)
     handleLayoutChange(ws.layout)
-    if (!user) return
-    getSupabase().from('profiles').update({ active_workspace: wsId }).eq('id', user.id)
-      .then(() => {})
-  }, [workspaces, handleLayoutChange, user])
+  }, [workspaces, handleLayoutChange])
 
   const saveCurrentAsWorkspace = useCallback(() => {
     const name = prompt('Workspace name:')
@@ -1209,10 +1182,7 @@ export default function PWAApp() {
     const updated = [...workspaces, newWs]
     setWorkspaces(updated)
     setActiveWorkspace(newWs.id)
-    if (!user) return
-    getSupabase().from('profiles').update({ workspaces: updated, active_workspace: newWs.id }).eq('id', user.id)
-      .then(() => {})
-  }, [layout, workspaces, user])
+  }, [layout, workspaces])
 
   useEffect(() => {
     if (watchlist.length) fetchQuotes(watchlist)
@@ -1247,13 +1217,6 @@ export default function PWAApp() {
     return () => clearInterval(interval)
   }, [])
 
-  // Re-fetch scores when Pro status loads (profile is async)
-  useEffect(() => {
-    if (!isPro || watchlist.length === 0) return
-    fetchQuotes(watchlist)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPro])
-
   // Live price polling
   useEffect(() => {
     if (watchlist.length === 0) return
@@ -1282,20 +1245,12 @@ export default function PWAApp() {
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
-    if (p.get('subscribed') === 'true' && !user) setShowAuth(true)
     const urlTab = p.get('tab')
     if (urlTab && ['scanner', 'macro', 'watchlist', 'news', 'settings'].includes(urlTab)) {
       setTab(urlTab as Tab)
     }
-  }, [user])
+  }, [])
 
-  useEffect(() => {
-    if (!user) return
-    fetch('/api/usage/ai', { headers: { 'X-User-ID': user.id } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setAIUsage(d) })
-      .catch(() => {})
-  }, [user])
 
   // Close user menu on outside click
   useEffect(() => {
@@ -1349,7 +1304,7 @@ export default function PWAApp() {
         headers: {
           'Content-Type': 'application/json',
           'X-User-ID': user?.id ?? '',
-          'X-Is-Pro': isPro ? 'true' : 'false',
+          'X-Is-Pro': 'true',
         },
         body: JSON.stringify({
           messages: [...chatMessages, userMsg],
@@ -1372,21 +1327,31 @@ export default function PWAApp() {
   // ── Watchlist CRUD ──
   const addToWatchlist = useCallback(async (s: string) => {
     if (watchlist.includes(s)) return
-    if (user) await getSupabase().from('watchlist').insert({ user_id: user.id, symbol: s })
-    // Stream subscription happens server-side on next score fetch
-    fetch(`/api/score/${s}`, { headers: { 'X-Is-Pro': isPro ? 'true' : 'false', 'X-User-ID': user?.id ?? '' } }).catch(() => {})
+    fetch(`/api/score/${s}`, { headers: { 'X-Is-Pro': 'true' } }).catch(() => {})
     setWatchlist(prev => [...prev, s])
     fetchQuotes([s])
-    // Immediately fetch score for new ticker — don't wait for 60s TTL cycle
     if (scoreTimestamps.current) {
       delete scoreTimestamps.current[s]
     }
     fetchScore(s)
-  }, [watchlist, user, fetchQuotes, fetchScore])
+  }, [watchlist, fetchQuotes, fetchScore])
+
+  // Persist watchlist to Electron store on change
+  const watchlistRef = useRef(watchlist)
+  useEffect(() => {
+    if (watchlist === watchlistRef.current && watchlist.length === 0) return
+    watchlistRef.current = watchlist
+    if (typeof window !== 'undefined' && window.electron && watchlist.length > 0) {
+      window.electron.setData('watchlist', watchlist)
+    }
+  }, [watchlist])
 
   async function removeTicker(sym: string) {
-    setWatchlist(prev => prev.filter(s => s !== sym))
-    if (user) await getSupabase().from('watchlist').delete().eq('user_id', user.id).eq('symbol', sym)
+    const updated = watchlist.filter(s => s !== sym)
+    setWatchlist(updated)
+    if (typeof window !== 'undefined' && window.electron) {
+      await window.electron.setData('watchlist', updated)
+    }
   }
 
   // ── AI Analysis ──
@@ -1397,7 +1362,7 @@ export default function PWAApp() {
       const res = await fetch(`/api/score/${sym}`, {
         headers: {
           'X-User-ID': user?.id ?? '',
-          'X-Is-Pro': isPro ? 'true' : 'false',
+          'X-Is-Pro': 'true',
         },
         cache: 'no-store',
       })
@@ -1423,22 +1388,8 @@ export default function PWAApp() {
     }
   }
 
-  async function saveModelPreference(provider: string, model: string) {
-    if (!user) return
-    try {
-      await getSupabase().from('profiles').update({ preferred_ai_model: model, preferred_ai_provider: provider }).eq('id', user.id)
-    } catch (e) {
-      console.error('Failed to save model preference:', e)
-    }
-  }
-
-  async function handleManageSubscription() {
-    if (!profile?.stripe_customer_id) return
-    try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: profile.stripe_customer_id }) })
-      const { url } = await res.json()
-      if (url) window.location.href = url
-    } catch (err) { console.error('Portal error:', err) }
+  async function saveModelPreference(_provider: string, _model: string) {
+    // Model preference saved locally — no remote persistence needed
   }
 
   // ── Quote helper ──
@@ -1464,7 +1415,7 @@ export default function PWAApp() {
         headers: {
           'Content-Type': 'application/json',
           'X-User-ID': user?.id ?? '',
-          'X-Is-Pro': isPro ? 'true' : 'false',
+          'X-Is-Pro': 'true',
         },
         body: JSON.stringify({
           messages: [{ role: 'user', content: `Analyze my portfolio of ${watchlist.join(', ')} in the context of ${macro?.regime ?? 'current'} macro regime. For each symbol: conviction level, key risk, and whether it aligns with macro conditions. Give a brief overall portfolio assessment. Max 300 words.` }],
@@ -1485,16 +1436,6 @@ export default function PWAApp() {
   // ── SCANNER TAB ──
   function renderScanner() {
     const symbols = watchlist.length ? watchlist : []
-
-    if (!user && !authLoading) {
-      return (
-        <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-          <div style={{ fontFamily: D.sans, fontSize: 24, fontWeight: 700, color: D.text, marginBottom: 8 }}>Market Scanner</div>
-          <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 24 }}>Sign in to access conviction scores, macro data, and your watchlist.</p>
-          <button onClick={() => setShowAuth(true)} style={{ padding: '10px 32px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Sign In</button>
-        </div>
-      )
-    }
 
     return (
       <>
@@ -1734,7 +1675,7 @@ export default function PWAApp() {
             </div>
 
             {/* AI Macro Analysis — Pro only */}
-            {isPro && <MacroAIPanel macro={macro} user={user} />}
+            <MacroAIPanel macro={macro} user={user} />
 
             {/* Indicator grid — 4 col desktop, 2 col mobile */}
             <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: 12 }}>
@@ -1793,29 +1734,16 @@ export default function PWAApp() {
 
   // ── WATCHLIST TAB ──
   function renderWatchlist() {
-    if (!user && !authLoading) {
-      return (
-        <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-          <div style={{ fontFamily: D.sans, fontSize: 24, fontWeight: 700, color: D.text, marginBottom: 8 }}>Watchlist</div>
-          <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 24 }}>Sign in to build your watchlist.</p>
-          <button onClick={() => setShowAuth(true)} style={{ padding: '10px 32px', borderRadius: 8, border: 'none', background: D.accent, color: '#000', fontFamily: D.sans, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Sign In</button>
-        </div>
-      )
-    }
-
-    const atLimit = !isPro && watchlist.length >= FREE_WATCHLIST_LIMIT
-
     return (
       <>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
             <span style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18 }}>Watchlist</span>
             <span style={{ marginLeft: 12, fontFamily: D.sans, fontSize: 12, color: D.muted }}>
-              {watchlist.length}{isPro ? ' symbols' : ` / ${FREE_WATCHLIST_LIMIT}`}
-              {isPro && <span style={{ marginLeft: 8, fontFamily: D.sans, fontSize: 10, padding: '2px 6px', borderRadius: 3, background: `${D.accent}15`, color: D.accent, fontWeight: 600 }}>PRO</span>}
+              {watchlist.length} symbols
             </span>
           </div>
-          {watchlist.length >= 2 && isPro && (
+          {watchlist.length >= 2 && (
             <button onClick={runPortfolioAnalysis} disabled={portfolioAnalysis.loading} style={{
               padding: '6px 16px', borderRadius: 6, border: `1px solid ${D.accent}40`,
               background: `${D.accent}10`, color: D.accent, fontFamily: D.sans,
@@ -1827,7 +1755,7 @@ export default function PWAApp() {
           )}
         </div>
 
-        {user && <WatchlistSearch onAdd={addToWatchlist} isPro={isPro} watchlistLength={watchlist.length} freeLimitReached={!isPro && watchlist.length >= FREE_WATCHLIST_LIMIT} />}
+        <WatchlistSearch onAdd={addToWatchlist} isPro={isPro} watchlistLength={watchlist.length} freeLimitReached={false} />
 
         {/* Portfolio analysis result */}
         {showPortfolio && portfolioAnalysis.data && (
@@ -1909,41 +1837,22 @@ export default function PWAApp() {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: 40, color: D.muted, fontFamily: D.sans, fontSize: 14 }}>
-            {user ? 'Search and add tickers above' : 'Sign in to build your watchlist'}
-          </div>
-        )}
-
-        {atLimit && (
-          <a href="/#pricing" style={{
-            display: 'block', textAlign: 'center', padding: 12, borderRadius: 8, marginTop: 12,
-            background: `${D.accent}08`, border: `1px solid ${D.accent}20`,
-            color: D.accent, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-          }}>Upgrade to Pro for unlimited watchlist</a>
-        )}
-
-        {watchlist.length >= 2 && !isPro && (
-          <div style={{ position: 'relative', marginTop: 16 }}>
-            <button disabled style={{
-              width: '100%', padding: 12, borderRadius: 8, border: 'none',
-              background: `${D.muted}10`, fontFamily: D.sans, fontSize: 13,
-              color: D.muted, cursor: 'default',
-            }}>AI Portfolio Analysis</button>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-              <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
-            </div>
+            Search and add tickers above
           </div>
         )}
 
         {/* Portfolio Tracker */}
         <div style={{ background: D.surface, borderRadius: 12, border: `1px solid ${D.border}`, padding: 16, marginTop: 20 }}>
-          <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12 }}>My Portfolio</div>
-          {/* Add position */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>My Portfolio</div>
+            {portfolio.length > 0 && <button onClick={() => savePortfolio([])} style={{ background: 'none', border: 'none', color: D.muted, cursor: 'pointer', fontSize: 10, fontFamily: D.sans }}>Clear All</button>}
+          </div>
+          {/* Add position — enter shares and price per share */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
             {[
               { key: 'symbol', placeholder: 'TICKER', width: 80 },
               { key: 'shares', placeholder: 'Shares', width: 70 },
-              { key: 'avgCost', placeholder: 'Avg $', width: 80 },
+              { key: 'avgCost', placeholder: '$/share', width: 80 },
             ].map(f => (
               <input key={f.key} value={(portfolioInput as Record<string, string>)[f.key]} onChange={e => setPortfolioInput(prev => ({ ...prev, [f.key]: e.target.value }))}
                 placeholder={f.placeholder} style={{ width: f.width, padding: '6px 8px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: f.key === 'symbol' ? D.mono : D.sans, outline: 'none', textTransform: f.key === 'symbol' ? 'uppercase' as const : 'none' as const }} />
@@ -1953,7 +1862,7 @@ export default function PWAApp() {
           {portfolio.length > 0 && (() => {
             let totalValue = 0, totalCost = 0
             const positions = portfolio.map(p => {
-              const price = liveQuotes[p.symbol]?.price ?? 0
+              const price = getQuote(p.symbol)?.price ?? liveQuotes[p.symbol]?.price ?? 0
               const value = price * p.shares
               const cost = p.avgCost * p.shares
               const pnl = value - cost
@@ -1966,6 +1875,7 @@ export default function PWAApp() {
             return (
               <>
                 <div style={{ display: 'flex', gap: 16, padding: '8px 10px', background: D.bg, borderRadius: 8, marginBottom: 10 }}>
+                  <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>Cost</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: D.muted }}>${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
                   <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>Value</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: D.text }}>${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
                   <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>P&L</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: totalPnl >= 0 ? D.accent : D.red }}>{totalPnl >= 0 ? '+' : ''}${totalPnl.toLocaleString('en-US', { maximumFractionDigits: 0 })} ({totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(1)}%)</div></div>
                 </div>
@@ -2052,7 +1962,7 @@ export default function PWAApp() {
             {[
               { key: 'symbol', placeholder: 'TICKER', width: 80 },
               { key: 'shares', placeholder: 'Shares', width: 70 },
-              { key: 'avgCost', placeholder: 'Avg $', width: 80 },
+              { key: 'avgCost', placeholder: '$/share', width: 80 },
             ].map(f => (
               <input key={f.key} value={(portfolioInput as Record<string, string>)[f.key]} onChange={e => setPortfolioInput(prev => ({ ...prev, [f.key]: e.target.value }))}
                 placeholder={f.placeholder} style={{ width: f.width, padding: '6px 8px', background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.text, fontSize: 12, fontFamily: f.key === 'symbol' ? D.mono : D.sans, outline: 'none', textTransform: f.key === 'symbol' ? 'uppercase' as const : 'none' as const }} />
@@ -2062,7 +1972,7 @@ export default function PWAApp() {
           {portfolio.length > 0 && (() => {
             let totalValue = 0, totalCost = 0
             const positions = portfolio.map(p => {
-              const price = liveQuotes[p.symbol]?.price ?? 0
+              const price = getQuote(p.symbol)?.price ?? liveQuotes[p.symbol]?.price ?? 0
               const value = price * p.shares
               const cost = p.avgCost * p.shares
               const pnl = value - cost
@@ -2075,6 +1985,7 @@ export default function PWAApp() {
             return (
               <>
                 <div style={{ display: 'flex', gap: 16, padding: '8px 10px', background: D.bg, borderRadius: 8, marginBottom: 10 }}>
+                  <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>Cost</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: D.muted }}>${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
                   <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>Value</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: D.text }}>${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
                   <div><div style={{ fontSize: 9, color: D.muted, fontFamily: D.sans, textTransform: 'uppercase' as const, fontWeight: 700 }}>P&L</div><div style={{ fontSize: 15, fontFamily: D.mono, fontWeight: 700, color: totalPnl >= 0 ? D.accent : D.red }}>{totalPnl >= 0 ? '+' : ''}${totalPnl.toLocaleString('en-US', { maximumFractionDigits: 0 })} ({totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(1)}%)</div></div>
                 </div>
@@ -2172,12 +2083,11 @@ export default function PWAApp() {
     return (
       <>
         <div style={{ fontFamily: D.sans, fontWeight: 700, color: D.text, fontSize: 18, marginBottom: 20 }}>Settings</div>
-        {user ? (
-          <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr', gap: 12, maxWidth: 900 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr', gap: 12, maxWidth: 900 }}>
             {/* Account */}
             <div style={cardStyle}>
               <div style={labelStyle}>Account</div>
-              <div style={{ fontFamily: D.sans, fontSize: 14, color: D.text, marginBottom: 12 }}>{user.email}</div>
+              <div style={{ fontFamily: D.sans, fontSize: 14, color: D.text, marginBottom: 12 }}>{user?.email ?? 'Local User'}</div>
               <a href="/account" style={{
                 display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
                 background: `${D.muted}15`, border: `1px solid ${D.border}`,
@@ -2193,51 +2103,10 @@ export default function PWAApp() {
                 <span style={{
                   fontFamily: D.sans, fontSize: 12, fontWeight: 700,
                   padding: '3px 10px', borderRadius: 4,
-                  background: isPro ? `${D.accent}15` : `${D.muted}15`,
-                  color: isPro ? D.accent : D.muted,
-                }}>{isPro ? 'PRO' : 'FREE'}</span>
+                  background: `${D.accent}15`,
+                  color: D.accent,
+                }}>LOCAL</span>
               </div>
-              {isPro && profile?.subscription_source === 'stripe' && (
-                <button onClick={handleManageSubscription} style={{
-                  width: '100%', padding: 10, borderRadius: 6,
-                  border: `1px solid ${D.border}`, background: 'transparent',
-                  color: D.text, fontFamily: D.sans, fontSize: 12, cursor: 'pointer',
-                }}>Manage subscription</button>
-              )}
-              {isPro && profile?.subscription_source === 'apple' && (
-                <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted }}>Manage in iPhone Settings &gt; Subscriptions</p>
-              )}
-              {!isPro && (
-                <a href="/#pricing" style={{
-                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
-                  background: `${D.accent}15`, color: D.accent, border: `1px solid ${D.accent}25`,
-                  fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                }}>Upgrade to Pro</a>
-              )}
-            </div>
-
-            {/* AI Keys + Model Selector */}
-            <div style={cardStyle}>
-              <div style={labelStyle}>Bring Your Own Key</div>
-              <p style={{ fontFamily: D.sans, fontSize: 11, color: D.muted, marginBottom: 12 }}>
-                Billed directly by your chosen AI provider at their rates. XAtlas has no markup.
-              </p>
-              {isPro ? (
-                <a href="/account" style={{
-                  display: 'block', textAlign: 'center', padding: 10, borderRadius: 6,
-                  background: `${D.muted}15`, border: `1px solid ${D.border}`,
-                  color: D.text, fontFamily: D.sans, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                }}>Manage API Keys</a>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                  <p style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, margin: '8px 0' }}>API Keys require Pro</p>
-                  <a href="/#pricing" style={{
-                    padding: '6px 16px', borderRadius: 4, background: `${D.accent}12`,
-                    color: D.accent, fontFamily: D.sans, fontSize: 11, fontWeight: 600, textDecoration: 'none',
-                  }}>Start free trial</a>
-                </div>
-              )}
             </div>
 
             {/* AI Usage */}
@@ -2330,15 +2199,6 @@ export default function PWAApp() {
               ))}
             </div>
           </div>
-        ) : (
-          <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: 24 }}>
-            <p style={{ fontFamily: D.sans, fontSize: 14, color: D.muted, marginBottom: 12 }}>Sign in to access your subscription and settings.</p>
-            <button onClick={() => setShowAuth(true)} style={{
-              width: '100%', padding: 12, borderRadius: 8, border: 'none',
-              background: D.accent, color: '#000', fontFamily: D.sans, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}>Sign In</button>
-          </div>
-        )}
       </>
     )
   }
@@ -2350,7 +2210,7 @@ export default function PWAApp() {
     const d = getQuote(sym)
     const isCrypto = CRYPTO_SYMBOLS.has(sym)
     const ai = aiData[sym]
-    if (!ai && isPro) fetchAI(sym)
+    if (!ai) fetchAI(sym)
     const isUp = (d?.change_percent ?? 0) >= 0
 
     return (
@@ -2449,7 +2309,7 @@ export default function PWAApp() {
                     </div>
                   </div>
                   {/* Score breakdown */}
-                  {isPro && scores[sym] ? (
+                  {scores[sym] ? (
                     <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', marginBottom: 16 }}>
                       <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: 12, fontWeight: 600 }}>Score Breakdown</div>
                       {[
@@ -2470,22 +2330,6 @@ export default function PWAApp() {
                           </div>
                         </div>
                       ))}
-                    </div>
-                  ) : !isPro ? (
-                    <div style={{ background: D.surface, borderRadius: 10, border: `1px solid ${D.border}`, padding: '16px 20px', position: 'relative', marginBottom: 16 }}>
-                      <div style={{ opacity: 0.3, pointerEvents: 'none' }}>
-                        <div style={{ fontFamily: D.sans, fontSize: 10, color: D.muted, letterSpacing: '1px', marginBottom: 12 }}>SCORE BREAKDOWN</div>
-                        {['Squeeze', 'Options Flow', 'Macro'].map(l => (
-                          <div key={l} style={{ marginBottom: 8 }}>
-                            <div style={{ fontFamily: D.sans, fontSize: 12, color: D.muted, marginBottom: 4 }}>{l}</div>
-                            <div style={{ height: 4, borderRadius: 2, background: D.border }} />
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={D.muted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                        <a href="/#pricing" style={{ fontFamily: D.sans, fontSize: 11, color: D.accent, textDecoration: 'none', fontWeight: 600 }}>Upgrade to Pro</a>
-                      </div>
                     </div>
                   ) : null}
                 </React.Fragment>
@@ -2522,14 +2366,6 @@ export default function PWAApp() {
   // ── MAIN LAYOUT ──
   // ════════════════════════════════════════
 
-  if (authLoading) {
-    return (
-      <div style={{ background: D.bg, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontFamily: D.sans, fontSize: 14, color: D.muted }}>Loading...</div>
-      </div>
-    )
-  }
-
   return (
     <DashboardErrorBoundary>
     <div style={{
@@ -2543,7 +2379,6 @@ export default function PWAApp() {
       fontSize: FONT_SIZES[layout.fontSize].base,
       fontFamily: FONT_FAMILIES[layout.fontFamily].primary,
     } as React.CSSProperties}>
-      {showAuth && <AuthModal open={true} onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
 
       {/* ── TOP BAR (48px, fixed, full width) ── */}
       <header style={{
@@ -2653,46 +2488,16 @@ export default function PWAApp() {
             </span>
           </div>
 
-          {/* User menu */}
-          {!authLoading && (
-            user ? (
-              <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowUserMenu(!showUserMenu)} style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: D.accent, border: 'none', cursor: 'pointer',
-                  color: '#000', fontWeight: 700, fontSize: 13, fontFamily: D.sans,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {user.email?.[0]?.toUpperCase() ?? 'U'}
-                </button>
-                {showUserMenu && (
-                  <div style={{
-                    position: 'absolute', right: 0, top: 40,
-                    background: D.card, border: `1px solid ${D.border}`,
-                    borderRadius: 10, padding: '6px 0', minWidth: 200, zIndex: 1000,
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                  }}>
-                    <div style={{ padding: '8px 16px', color: D.muted, fontSize: 11, fontFamily: D.sans, borderBottom: `1px solid ${D.border}` }}>
-                      {user.email}
-                      {isPro && <span style={{ marginLeft: 8, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${D.accent}15`, color: D.accent, fontWeight: 700 }}>PRO</span>}
-                    </div>
-                    <a href="/account" style={{ display: 'block', padding: '10px 16px', color: D.text, textDecoration: 'none', fontSize: 13, fontFamily: D.sans }}>My Account</a>
-                    <button onClick={async () => { await signOut(); setShowUserMenu(false) }} style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '10px 16px', color: D.red,
-                      background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: D.sans,
-                    }}>Sign Out</button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button onClick={() => setShowAuth(true)} style={{
-                padding: '6px 16px', borderRadius: 6, border: 'none',
-                background: D.accent, color: '#000', fontFamily: D.sans,
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              }}>Sign In</button>
-            )
-          )}
+          {/* Settings gear */}
+          <button onClick={() => setTab('settings')} style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: tab === 'settings' ? `${D.accent}20` : 'transparent',
+            border: `1px solid ${D.border}`, cursor: 'pointer',
+            color: D.muted, fontSize: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            &#9881;
+          </button>
         </div>
       </header>
 
@@ -2923,8 +2728,8 @@ export default function PWAApp() {
               <>
                 {/* Model selector + context */}
                 <div style={{ padding: '8px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
-                  {/* BYOK Anthropic models */}
-                  {isPro && [
+                  {/* Anthropic models */}
+                  {[
                     { id: 'claude-haiku-4-5', label: 'Haiku', desc: 'Fast' },
                     { id: 'claude-sonnet-4-5', label: 'Sonnet', desc: 'Balanced' },
                     { id: 'claude-opus-4-5', label: 'Opus', desc: 'Powerful' },
@@ -2940,14 +2745,6 @@ export default function PWAApp() {
                       {m.label}
                     </button>
                   ))}
-                  {/* No BYOK — show default */}
-                  {!isPro && (
-                    <div style={{ fontSize: 11, color: D.muted, fontFamily: D.sans }}>
-                      {isPro ? `● Sonnet 4.5 · XAtlas Pro` : `● Haiku 4.5 · XAtlas Free`}
-                      {' · '}
-                      <button onClick={() => setTab('settings')} style={{ background: 'none', border: 'none', color: D.accent, cursor: 'pointer', fontSize: 11, padding: 0, fontFamily: D.sans }}>Add your own key →</button>
-                    </div>
-                  )}
                   {/* Context badges */}
                   {selectedTicker && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: `${D.accentBlue}12`, color: D.accentBlue, fontFamily: D.sans, fontWeight: 600, marginLeft: 'auto' }}>{selectedTicker}</span>}
                 </div>

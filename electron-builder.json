@@ -1,0 +1,27 @@
+{
+  "appId": "io.xatlas.app",
+  "productName": "XAtlas",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    "electron/**/*",
+    ".next/**/*",
+    "public/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "../atlas-backend/dist/xatlas-backend",
+      "to": "backend/xatlas-backend",
+      "filter": ["**/*"]
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.finance",
+    "target": ["dmg"],
+    "icon": "electron/icons/icon.icns",
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false
+  }
+}

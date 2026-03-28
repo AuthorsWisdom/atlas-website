@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-const BACKEND = 'https://atlas-backend-silent-log-2366.fly.dev'
+const BACKEND = 'http://localhost:8080'
 
 export async function GET() {
   try {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const RAILWAY = 'https://atlas-backend-silent-log-2366.fly.dev'
+const RAILWAY = 'http://localhost:8080'
 
 export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get('userId')
